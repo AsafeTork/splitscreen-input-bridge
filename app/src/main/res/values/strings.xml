@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">SplitScreen Input Bridge</string>
+    <string name="accessibility_service_label">SplitScreen Input Bridge</string>
+    <string name="accessibility_service_description">
+        Permite que dois gamepads Bluetooth idênticos controlem instâncias separadas do Minecraft
+        em modo split-screen. O serviço intercepta eventos do segundo controle e os redireciona
+        para a janela secundária via injeção privilegiada de input.
+    </string>
+    <string name="accessibility_service_summary">
+        Roteamento de gamepad para split-screen do Minecraft
+    </string>
+</resources>

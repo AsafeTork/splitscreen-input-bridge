@@ -1,0 +1,113 @@
+plugins {
+    id 'com.android.application'
+    id 'org.jetbrains.kotlin.android'
+}
+
+android {
+    namespace 'com.splitscreen.inputbridge'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "com.splitscreen.inputbridge"
+        minSdk 33          // API 33 = Android 13 (Tiramisu) — required for onMotionEvent() in AccessibilityService
+        targetSdk 34
+        versionCode 1
+        versionName "1.0.0"
+
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+
+        vectorDrawables {
+            useSupportLibrary true
+        }
+    }
+
+    buildTypes {
+        debug {
+            debuggable true
+            applicationIdSuffix ".debug"
+            versionNameSuffix "-debug"
+            minifyEnabled false
+        }
+        release {
+            minifyEnabled true
+            shrinkResources true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            // Sign with your keystore for release builds
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    kotlinOptions {
+        jvmTarget = '17'
+        freeCompilerArgs += [
+            '-opt-in=androidx.compose.material3.ExperimentalMaterial3Api',
+            '-opt-in=kotlin.RequiresOptIn',
+        ]
+    }
+
+    buildFeatures {
+        compose true
+        aidl true   // Required for IShizukuUserService.aidl generation
+    }
+
+    composeOptions {
+        kotlinCompilerExtensionVersion '1.5.10'
+    }
+
+    packaging {
+        resources {
+            excludes += '/META-INF/{AL2.0,LGPL2.1}'
+        }
+    }
+}
+
+dependencies {
+    // ── Kotlin & Coroutines ──────────────────────────────────────────────────
+    implementation 'org.jetbrains.kotlin:kotlin-stdlib:1.9.22'
+    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3'
+
+    // ── AndroidX Core ────────────────────────────────────────────────────────
+    implementation 'androidx.core:core-ktx:1.12.0'
+    implementation 'androidx.appcompat:appcompat:1.6.1'
+
+    // ── Lifecycle ────────────────────────────────────────────────────────────
+    implementation 'androidx.lifecycle:lifecycle-runtime-ktx:2.7.0'
+    implementation 'androidx.lifecycle:lifecycle-runtime-compose:2.7.0'   // collectAsStateWithLifecycle
+    implementation 'androidx.lifecycle:lifecycle-viewmodel-compose:2.7.0'
+
+    // ── Activity ─────────────────────────────────────────────────────────────
+    implementation 'androidx.activity:activity-compose:1.8.2'
+
+    // ── Jetpack Compose (BOM) ────────────────────────────────────────────────
+    implementation platform('androidx.compose:compose-bom:2024.02.01')
+    implementation 'androidx.compose.ui:ui'
+    implementation 'androidx.compose.ui:ui-graphics'
+    implementation 'androidx.compose.ui:ui-tooling-preview'
+    implementation 'androidx.compose.material3:material3'
+    implementation 'androidx.compose.material:material-icons-extended'
+
+    // ── Shizuku ──────────────────────────────────────────────────────────────
+    // Shizuku API: provides Shizuku.*, UserServiceArgs, ShizukuRemoteProcess, etc.
+    implementation 'dev.rikka.shizuku:api:13.1.5'
+    // Shizuku provider: required for apps targeting API 23+ (handles permission model)
+    implementation 'dev.rikka.shizuku:provider:13.1.5'
+
+    // ── Hidden API Bypass (required for IInputManager reflection) ────────────
+    // LSPosed's HiddenApiBypass allows calling hidden Android APIs (e.g. ServiceManager.getService,
+    // IInputManager.injectInputEvent) without triggering the Hidden API enforcement introduced
+    // in Android 9 (targetSdk 28+). Essential for accessing IInputManager from the Shizuku context.
+    implementation 'org.lsposed.hiddenapibypass:hiddenapibypass:4.3'
+
+    // ── Debug & Testing ──────────────────────────────────────────────────────
+    debugImplementation 'androidx.compose.ui:ui-tooling'
+    debugImplementation 'androidx.compose.ui:ui-test-manifest'
+    testImplementation 'junit:junit:4.13.2'
+    androidTestImplementation 'androidx.test.ext:junit:1.1.5'
+    androidTestImplementation 'androidx.test.espresso:espresso-core:3.5.1'
+    androidTestImplementation platform('androidx.compose:compose-bom:2024.02.01')
+    androidTestImplementation 'androidx.compose.ui:ui-test-junit4'
+}

@@ -1,0 +1,112 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    package="com.splitscreen.inputbridge">
+
+    <!-- ─────────────────────────────────────────────────────────────────────
+         Permissions
+         ───────────────────────────────────────────────────────────────────── -->
+
+    <!-- Foreground service (mandatory for InputBridgeService) -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+
+    <!-- Required for injectInputEvent via IInputManager (granted to shell UID via Shizuku) -->
+    <!-- Note: this is a signature/privileged permission; the app itself won't hold it.
+         Shizuku's privileged user service (ShizukuPrivilegedUserService) runs with shell UID
+         which does hold this permission. We declare it here for documentation purposes. -->
+    <uses-permission android:name="android.permission.INJECT_EVENTS"
+        tools:ignore="ProtectedPermissions" />
+
+    <!-- Required for reading input device descriptors -->
+    <uses-permission android:name="android.permission.VIBRATE" />
+
+    <!-- Shizuku permission -->
+    <uses-permission android:name="moe.shizuku.manager.permission.API_V23" />
+
+    <!-- Required for BIND_ACCESSIBILITY_SERVICE -->
+    <uses-permission android:name="android.permission.BIND_ACCESSIBILITY_SERVICE"
+        tools:ignore="ProtectedPermissions" />
+
+    <!-- Input device feature declarations -->
+    <uses-feature
+        android:name="android.hardware.bluetooth"
+        android:required="false" />
+
+    <application
+        android:allowBackup="false"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:fullBackupContent="@xml/backup_rules"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.SplitScreenInputBridge"
+        tools:targetApi="34">
+
+        <!-- ── Main Activity ─────────────────────────────────────────────── -->
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:label="@string/app_name"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden"
+            android:windowSoftInputMode="adjustResize">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!-- ── InputBridgeService (Foreground) ──────────────────────────── -->
+        <!--
+            Foreground service that:
+              - Maintains Player 1 and Player 2 descriptor assignments
+              - Triggers Shizuku shell hacks (multi_window_focus_enabled)
+              - Coordinates event injection via ShizukuUserService
+        -->
+        <service
+            android:name=".InputBridgeService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="GamepadInputBridge" />
+        </service>
+
+        <!-- ── Accessibility Service (Input Interceptor) ─────────────────── -->
+        <!--
+            The AccessibilityService is the ONLY way to intercept input events
+            globally without INJECT_EVENTS on non-rooted devices. The service
+            uses FLAG_REQUEST_FILTER_KEY_EVENTS and (API 33+) onMotionEvent()
+            to catch gamepad events before they hit the focused window.
+
+            Users must enable this service manually in:
+              Settings → Accessibility → SplitScreen Input Bridge → Enable
+        -->
+        <service
+            android:name=".InputBridgeAccessibilityService"
+            android:exported="true"
+            android:label="@string/accessibility_service_label"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/accessibility_service_config" />
+        </service>
+
+        <!-- ── Shizuku User Service ──────────────────────────────────────── -->
+        <!--
+            The ShizukuPrivilegedUserService runs inside the Shizuku server process
+            with shell UID. It is started via Shizuku.bindUserService() and provides
+            a binder with IInputManager access.
+        -->
+        <service
+            android:name=".ShizukuPrivilegedUserService"
+            android:exported="true"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
+            tools:ignore="ExportedService" />
+
+    </application>
+</manifest>

@@ -1,23 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!--
-    Accessibility Service configuration for InputBridgeAccessibilityService.
-
-    Key flags explained:
-      canRequestFilterKeyEvents     — allows onKeyEvent() to intercept gamepad button presses
-      canObserveGenericMotionEvents — API 33+ flag that enables onMotionEvent() for joystick/trigger axes
-      canRetrieveWindowContent      — needed to identify which windows are on screen (split-screen detection)
-
-    feedbackType="feedbackGeneric" with notificationTimeout="0" ensures the service
-    receives events as fast as possible with no artificial delay.
--->
 <accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
     android:accessibilityEventTypes="typeAllMask"
     android:accessibilityFeedbackType="feedbackGeneric"
-    android:accessibilityFlags="flagRequestFilterKeyEvents|flagRetrieveInteractiveWindows"
-    android:canRequestFilterKeyEvents="true"
+    android:accessibilityFlags="flagDefault|flagRequestFilterKeyEvents|flagRequestTouchExplorationMode"
     android:canRetrieveWindowContent="true"
-    android:canObserveGenericMotionEvents="true"
-    android:description="@string/accessibility_service_description"
-    android:notificationTimeout="0"
-    android:settingsActivity=".MainActivity"
-    android:summary="@string/accessibility_service_summary" />
+    android:canRequestFilterKeyEvents="true"
+    android:description="@string/accessibility_service_label" />

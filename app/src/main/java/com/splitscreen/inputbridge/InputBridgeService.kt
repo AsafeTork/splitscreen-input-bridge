@@ -22,7 +22,7 @@ import android.view.Choreographer
 import android.view.InputDevice
 import android.view.InputEvent
 import android.view.MotionEvent
-import android.view.WindowManager
+import android.view.Choreographer
 import com.splitscreen.inputbridge.config.AdvancedConfigManager
 import com.splitscreen.inputbridge.logging.EnhancedStructuredLogger
 import com.splitscreen.inputbridge.metrics.EnhancedPerformanceMetrics
@@ -824,7 +824,7 @@ class InputBridgeService : Service(), InputManager.InputDeviceListener {
         }
 
         // Stop foreground service
-        stopForeground(true)
+        // stopForeground(true)
 
         // structuredLogger.info("Service destroyed", "service_lifecycle")
     }

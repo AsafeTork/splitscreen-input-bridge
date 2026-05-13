@@ -10,12 +10,15 @@ import android.os.Binder
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
+import android.os.Process
 import android.util.DisplayMetrics
 import android.util.Log
+import android.view.Choreographer
 import android.view.InputDevice
 import android.view.InputEvent
 import android.view.MotionEvent
 import android.view.WindowManager
+import android.view.WindowMetricsCalculator
 import kotlinx.coroutines.*
 
 /**
@@ -51,6 +54,7 @@ class InputBridgeService : Service(), InputManager.InputDeviceListener {
     private val binder = LocalBinder()
     private lateinit var inputManager: InputManager
     private lateinit var windowManager: WindowManager
+    private lateinit var choreographer: Choreographer
 
     private var player1Descriptor: String = ""
     private var player2Descriptor: String = ""
@@ -59,16 +63,42 @@ class InputBridgeService : Service(), InputManager.InputDeviceListener {
     private var statusCallback: ((String, String, Boolean) -> Unit)? = null
 
     private val serviceScope = CoroutineScope(Dispatchers.Default + SupervisorJob())
+    private val injectionHandler = Handler(Looper.getMainLooper()) { msg ->
+        when (msg.what) {
+            MSG_INJECT_EVENT -> {
+                val event = msg.obj as MotionEvent
+                injectEventWithChoreographer(event)
+                true
+            }
+            else -> false
+        }
+    }
 
     private var screenWidth: Int = 0
     private var screenHeight: Int = 0
+    private var screenDensity: Float = 1.0f
 
     private val mainHandler = Handler(Looper.getMainLooper())
+    private val watchdogHandler = Handler(Looper.getMainLooper())
+
+    private val watchdogRunnable = object : Runnable {
+        override fun run() {
+            checkShizukuHealth()
+            watchdogHandler.postDelayed(this, 5000)
+        }
+    }
+
+    companion object {
+        private const val MSG_INJECT_EVENT = 1
+        private const val DEADZONE_THRESHOLD = 0.15f
+        private const val WATCHDOG_INTERVAL_MS = 5000L
+    }
 
     override fun onCreate() {
         super.onCreate()
         inputManager = getSystemService(InputManager::class.java)
         windowManager = getSystemService(WindowManager::class.java)
+        choreographer = Choreographer.getInstance()
 
         inputManager.registerInputDeviceListener(this, mainHandler)
         createNotificationChannel()
@@ -107,6 +137,8 @@ class InputBridgeService : Service(), InputManager.InputDeviceListener {
         updateNotification("Bridge ATIVA — P1: ${player1Descriptor.take(12)} | P2: ${player2Descriptor.take(12)}")
         statusCallback?.invoke(player1Descriptor, player2Descriptor, true)
         Log.i(TAG, "Bridge started. P1=$player1Descriptor P2=$player2Descriptor")
+
+        startWatchdog()
     }
 
     fun stopBridge() {
@@ -114,6 +146,8 @@ class InputBridgeService : Service(), InputManager.InputDeviceListener {
         updateNotification("Bridge inativa")
         statusCallback?.invoke(player1Descriptor, player2Descriptor, false)
         Log.i(TAG, "Bridge stopped")
+
+        stopWatchdog()
     }
 
     /**
@@ -128,7 +162,7 @@ class InputBridgeService : Service(), InputManager.InputDeviceListener {
         if (!bridgeActive) return false
 
         val device = InputDevice.getDevice(event.deviceId) ?: return false
-        val descriptor = device.descriptor
+        val descriptor = getEnhancedDeviceDescriptor(device)
 
         return when (descriptor) {
             player1Descriptor -> {
@@ -140,6 +174,19 @@ class InputBridgeService : Service(), InputManager.InputDeviceListener {
             }
             else -> false
         }
+    }
+
+    private fun getEnhancedDeviceDescriptor(device: InputDevice): String {
+        val baseDescriptor = device.descriptor
+        try {
+            val uniqueId = ShizukuUserService.execShellCommand("cat /proc/bus/input/devices | grep -A 5 'N: Name=\"${device.name}\"' | grep 'U: Uniq=' | cut -d'=' -f2")
+            if (uniqueId.isNotBlank()) {
+                return "$baseDescriptor|$uniqueId"
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to get enhanced descriptor: ${e.message}")
+        }
+        return baseDescriptor
     }
 
     /**
@@ -159,6 +206,10 @@ class InputBridgeService : Service(), InputManager.InputDeviceListener {
         val axisX = source.getAxisValue(MotionEvent.AXIS_X)
         val axisY = source.getAxisValue(MotionEvent.AXIS_Y)
         val axisTriggerL = source.getAxisValue(MotionEvent.AXIS_LTRIGGER)
+
+        if (Math.abs(axisX) < DEADZONE_THRESHOLD && Math.abs(axisY) < DEADZONE_THRESHOLD) {
+            return
+        }
 
         val touchX = ((axisX + 1.0f) / 2.0f) * screenWidth
         val touchY = (screenHeight / 2f) + ((axisY + 1.0f) / 2.0f) * (screenHeight / 2f)
@@ -190,8 +241,22 @@ class InputBridgeService : Service(), InputManager.InputDeviceListener {
             0
         )
 
-        ShizukuUserService.injectInputEvent(syntheticEvent)
-        syntheticEvent.recycle()
+        val message = injectionHandler.obtainMessage(MSG_INJECT_EVENT, syntheticEvent)
+        message.sendToTarget()
+    }
+
+    private fun injectEventWithChoreographer(event: MotionEvent) {
+        choreographer.postFrameCallback(object : Choreographer.FrameCallback {
+            override fun doFrame(frameTimeNanos: Long) {
+                try {
+                    android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_URGENT_DISPLAY)
+                    ShizukuUserService.injectInputEvent(event)
+                } finally {
+                    android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_DEFAULT)
+                    event.recycle()
+                }
+            }
+        })
     }
 
     /**
@@ -211,12 +276,41 @@ class InputBridgeService : Service(), InputManager.InputDeviceListener {
         }
     }
 
+    private fun startWatchdog() {
+        watchdogHandler.removeCallbacks(watchdogRunnable)
+        watchdogHandler.postDelayed(watchdogRunnable, WATCHDOG_INTERVAL_MS)
+        Log.d(TAG, "Watchdog started, checking Shizuku health every ${WATCHDOG_INTERVAL_MS}ms")
+    }
+
+    private fun stopWatchdog() {
+        watchdogHandler.removeCallbacks(watchdogRunnable)
+        Log.d(TAG, "Watchdog stopped")
+    }
+
+    private fun checkShizukuHealth() {
+        if (!bridgeActive) return
+
+        try {
+            val isShizukuAlive = ShizukuUserService.isReady()
+            if (!isShizukuAlive) {
+                Log.w(TAG, "Shizuku binder died, attempting to restart bridge...")
+                serviceScope.launch {
+                    applySystemHacks()
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Watchdog check failed: ${e.message}")
+        }
+    }
+
     private fun updateScreenDimensions() {
-        val metrics = DisplayMetrics()
-        @Suppress("DEPRECATION")
-        windowManager.defaultDisplay.getRealMetrics(metrics)
-        screenWidth = metrics.widthPixels
-        screenHeight = metrics.heightPixels
+        val windowMetrics = windowManager.currentWindowMetrics
+        val bounds = windowMetrics.bounds
+        screenWidth = bounds.width()
+        screenHeight = bounds.height()
+        screenDensity = windowManager.currentWindowMetrics.bounds.width().toFloat() / windowMetrics.bounds.width().toFloat()
+
+        Log.d(TAG, "Screen dimensions updated: ${screenWidth}x$screenHeight, density=$screenDensity")
     }
 
     private fun createNotificationChannel() {

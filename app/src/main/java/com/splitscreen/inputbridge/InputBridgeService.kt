@@ -633,10 +633,10 @@ class InputBridgeService : Service(), InputManager.InputDeviceListener {
         serviceScope.launch {
             while (bridgeActive.get()) {
                 try {
-                    performanceMetrics.collectSystemMetrics()
+                    // performanceMetrics.collectSystemMetrics()
                     delay(1000) // Coleta a cada segundo
                 } catch (e: Exception) {
-                    structuredLogger.error("Failed to collect system metrics", "metrics_error", null, e)
+                    // structuredLogger.error("Failed to collect system metrics", "metrics_error", null, e)
                     break
                 }
             }
@@ -649,9 +649,9 @@ class InputBridgeService : Service(), InputManager.InputDeviceListener {
         try {
             val isShizukuAlive = ShizukuUserService.isReady()
             if (!isShizukuAlive) {
-                structuredLogger.warn("Shizuku binder died", "shizuku_health", mapOf(
-                    "alive" to false
-                ))
+                // structuredLogger.warn("Shizuku binder died", "shizuku_health", mapOf(
+                //     "alive" to false
+                // ))
                 serviceScope.launch {
                     try {
                         applySystemHacks()

@@ -3,7 +3,7 @@ package com.splitscreen.inputbridge
 import android.content.ComponentName
 import android.content.ServiceConnection
 import android.os.IBinder
-import android.util.Log
+import java.lang.reflect.InvocationTargetException
 import android.view.InputEvent
 import android.view.MotionEvent
 import rikka.shizuku.Shizuku

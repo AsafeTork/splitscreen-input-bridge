@@ -809,15 +809,15 @@ class InputBridgeService : Service(), InputManager.InputDeviceListener {
         // Revert system hacks
         try {
             ShizukuUserService.execShellCommand("settings put global multi_window_focus_enabled 0")
-            structuredLogger.info("System hacks reverted", "system_hack")
+            // structuredLogger.info("System hacks reverted", "system_hack")
         } catch (e: Exception) {
-            structuredLogger.error("Failed to revert system hacks", "system_hack_error", null, e)
+            // structuredLogger.error("Failed to revert system hacks", "system_hack_error", null, e)
         }
 
         // Stop foreground service
         stopForeground(true)
 
-        structuredLogger.info("Service destroyed", "service_lifecycle")
+        // structuredLogger.info("Service destroyed", "service_lifecycle")
     }
 
     // Novos métodos públicos para configuração dinâmica

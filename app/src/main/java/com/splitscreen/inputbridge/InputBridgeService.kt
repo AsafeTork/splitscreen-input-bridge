@@ -18,7 +18,6 @@ import android.view.InputDevice
 import android.view.InputEvent
 import android.view.MotionEvent
 import android.view.WindowManager
-import android.view.WindowMetricsCalculator
 import kotlinx.coroutines.*
 
 /**
@@ -45,6 +44,9 @@ class InputBridgeService : Service(), InputManager.InputDeviceListener {
         private const val TAG = "InputBridgeService"
         private const val CHANNEL_ID = "bridge_channel"
         private const val NOTIF_ID = 1
+        private const val MSG_INJECT_EVENT = 1
+        private const val DEADZONE_THRESHOLD = 0.15f
+        private const val WATCHDOG_INTERVAL_MS = 5000L
     }
 
     inner class LocalBinder : Binder() {
@@ -86,12 +88,6 @@ class InputBridgeService : Service(), InputManager.InputDeviceListener {
             checkShizukuHealth()
             watchdogHandler.postDelayed(this, 5000)
         }
-    }
-
-    companion object {
-        private const val MSG_INJECT_EVENT = 1
-        private const val DEADZONE_THRESHOLD = 0.15f
-        private const val WATCHDOG_INTERVAL_MS = 5000L
     }
 
     override fun onCreate() {
@@ -304,11 +300,12 @@ class InputBridgeService : Service(), InputManager.InputDeviceListener {
     }
 
     private fun updateScreenDimensions() {
-        val windowMetrics = windowManager.currentWindowMetrics
-        val bounds = windowMetrics.bounds
-        screenWidth = bounds.width()
-        screenHeight = bounds.height()
-        screenDensity = windowManager.currentWindowMetrics.bounds.width().toFloat() / windowMetrics.bounds.width().toFloat()
+        val metrics = DisplayMetrics()
+        @Suppress("DEPRECATION")
+        windowManager.defaultDisplay.getRealMetrics(metrics)
+        screenWidth = metrics.widthPixels
+        screenHeight = metrics.heightPixels
+        screenDensity = metrics.density
 
         Log.d(TAG, "Screen dimensions updated: ${screenWidth}x$screenHeight, density=$screenDensity")
     }

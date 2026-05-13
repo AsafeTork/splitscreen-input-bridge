@@ -400,11 +400,14 @@ class InputBridgeService : Service(), InputManager.InputDeviceListener {
         val axisTriggerL = source.getAxisValue(MotionEvent.AXIS_LTRIGGER)
         val currentTime = System.nanoTime()
 
-        // Get current config
-        val config = configManager.configState.value
+        // Config values (configManager is commented out)
+        val deadzoneThreshold = 0.15f
+        val enableInputSmoothing = true
+        val enablePrediction = true
+        val predictionFactor = 0.05f
 
         // Deadzone filtering to eliminate noise
-        if (Math.abs(axisX) < config.deadzoneThreshold && Math.abs(axisY) < config.deadzoneThreshold) {
+        if (Math.abs(axisX) < deadzoneThreshold && Math.abs(axisY) < deadzoneThreshold) {
             // Reset prediction state when in deadzone
             lastAxisX = 0f
             lastAxisY = 0f
@@ -414,13 +417,13 @@ class InputBridgeService : Service(), InputManager.InputDeviceListener {
         }
 
         // Apply Kalman filter for input smoothing (if enabled)
-        val filteredAxisX = if (config.enableInputSmoothing) {
+        val filteredAxisX = if (enableInputSmoothing) {
             xFilter.update(axisX.toDouble()).toFloat()
         } else {
             axisX
         }
 
-        val filteredAxisY = if (config.enableInputSmoothing) {
+        val filteredAxisY = if (enableInputSmoothing) {
             yFilter.update(axisY.toDouble()).toFloat()
         } else {
             axisY
@@ -430,15 +433,15 @@ class InputBridgeService : Service(), InputManager.InputDeviceListener {
         var finalAxisX = filteredAxisX
         var finalAxisY = filteredAxisY
 
-        if (config.enablePrediction) {
+        if (enablePrediction) {
             synchronized(predictionLock) {
                 val frameDeltaTime = if (lastFrameTime > 0) (currentTime - lastFrameTime) / 1_000_000f else 0f
                 val velocityX = if (frameDeltaTime > 0) (filteredAxisX - lastAxisX) / frameDeltaTime else 0f
                 val velocityY = if (frameDeltaTime > 0) (filteredAxisY - lastAxisY) / frameDeltaTime else 0f
 
                 // Predict position based on current velocity
-                val predictedAxisX = filteredAxisX + (velocityX * config.predictionFactor)
-                val predictedAxisY = filteredAxisY + (velocityY * config.predictionFactor)
+                val predictedAxisX = filteredAxisX + (velocityX * predictionFactor)
+                val predictedAxisY = filteredAxisY + (velocityY * predictionFactor)
 
                 // Clamp predicted values to [-1.0, 1.0] range
                 finalAxisX = predictedAxisX.coerceIn(-1.0f, 1.0f)
@@ -505,8 +508,9 @@ class InputBridgeService : Service(), InputManager.InputDeviceListener {
         currentFrameCallback = object : Choreographer.FrameCallback {
             override fun doFrame(frameTimeNanos: Long) {
                 try {
-                    val config = configManager.configState.value
-                    Process.setThreadPriority(config.injectionPriority)
+                    // Default injection priority (configManager is commented out)
+                    val injectionPriority = Process.THREAD_PRIORITY_URGENT_DISPLAY
+                    Process.setThreadPriority(injectionPriority)
 
                     val injectionResult = try {
                         ShizukuUserService.injectInputEvent(event)
@@ -830,7 +834,7 @@ class InputBridgeService : Service(), InputManager.InputDeviceListener {
     // Novos métodos públicos para configuração dinâmica
     /*
     fun getConfigManager(): DynamicConfigManager {
-        return configManager
+        // return configManager
     }
 
     fun getProfileManager(): ProfilePersistenceManager {

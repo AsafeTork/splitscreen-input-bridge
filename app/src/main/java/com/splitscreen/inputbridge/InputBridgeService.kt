@@ -603,10 +603,10 @@ class InputBridgeService : Service(), InputManager.InputDeviceListener {
         }
 
         watchdogHandler.postDelayed(watchdogRunnable, adaptiveInterval)
-        structuredLogger.info("Watchdog started", "watchdog_lifecycle", mapOf(
-            "interval_ms" to adaptiveInterval,
-            "battery_level" to batteryLevel
-        ))
+        // structuredLogger.info("Watchdog started", "watchdog_lifecycle", mapOf(
+        //     "interval_ms" to adaptiveInterval,
+        //     "battery_level" to batteryLevel
+        // ))
     }
 
     private fun getBatteryLevel(): Int {
@@ -619,14 +619,14 @@ class InputBridgeService : Service(), InputManager.InputDeviceListener {
             val scale = batteryIntent?.getIntExtra(BatteryManager.EXTRA_SCALE, -1) ?: -1
             if (level >= 0 && scale > 0) (level * 100 / scale) else 100
         } catch (e: Exception) {
-            structuredLogger.warn("Failed to get battery level", "system_error", null, e)
+            // structuredLogger.warn("Failed to get battery level", "system_error", null, e)
             100 // Default to full battery if we can't determine
         }
     }
 
     private fun stopWatchdog() {
         watchdogHandler.removeCallbacks(watchdogRunnable)
-        structuredLogger.info("Watchdog stopped", "watchdog_lifecycle")
+        // structuredLogger.info("Watchdog stopped", "watchdog_lifecycle")
     }
 
     private fun startSystemMetricsCollection() {

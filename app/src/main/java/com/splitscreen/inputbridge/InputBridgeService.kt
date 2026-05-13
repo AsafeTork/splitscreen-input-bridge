@@ -669,7 +669,7 @@ class InputBridgeService : Service(), InputManager.InputDeviceListener {
         } catch (e: IllegalStateException) {
             structuredLogger.error("IllegalStateException in watchdog", "watchdog_error", null, e)
         } catch (e: Exception) {
-            structuredLogger.error("Watchdog check failed", "watchdog_error", null, e)
+            // structuredLogger.error("Watchdog check failed", "watchdog_error", null, e)
         } finally {
             // Reagendar o watchdog com intervalo adaptativo
             if (bridgeActive.get()) {
@@ -686,11 +686,11 @@ class InputBridgeService : Service(), InputManager.InputDeviceListener {
         screenHeight = metrics.heightPixels
         screenDensity = metrics.density
 
-        structuredLogger.debug("Screen dimensions updated", "system_info", mapOf(
-            "width" to screenWidth,
-            "height" to screenHeight,
-            "density" to screenDensity
-        ))
+        // structuredLogger.debug("Screen dimensions updated", "system_info", mapOf(
+        //     "width" to screenWidth,
+        //     "height" to screenHeight,
+        //     "density" to screenDensity
+        // ))
     }
 
     private fun createNotificationChannel() {

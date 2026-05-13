@@ -10,6 +10,8 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.content.SharedPreferences
 import android.hardware.input.InputManager
+import android.os.BatteryManager
+import android.hardware.input.InputManager
 import java.lang.ref.WeakReference
 import android.os.BatteryManager
 import android.os.Binder
@@ -145,7 +147,9 @@ class InputBridgeService : Service(), InputManager.InputDeviceListener {
         performanceMetrics.initializeSystemMetrics(this)
         structuredLogger = EnhancedStructuredLogger(TAG, performanceMetrics, enableFileLogging = true)
         configManager = AdvancedConfigManager(this, structuredLogger)
-        profileManager = ProfilePersistenceManager(this, structuredLogger)
+        // ProfilePersistenceManager espera StructuredLogger, não EnhancedStructuredLogger
+        val baseLogger = StructuredLogger(TAG, performanceMetrics, enableFileLogging = true)
+        profileManager = ProfilePersistenceManager(this, baseLogger)
 
         // Carrega configurações
         configManager.loadConfig()
@@ -198,7 +202,7 @@ class InputBridgeService : Service(), InputManager.InputDeviceListener {
     fun assignGamepad(player: Int, descriptor: String) {
         synchronized(this) {
             // Obter o fingerprint do dispositivo
-            val device = InputDevice.getDeviceIds().firstNotNullOfOrNull { id ->
+            val device = InputDevice.getDeviceIds().firstNotNullOfOrNull { id: Int ->
                 val dev = InputDevice.getDevice(id)
                 if (dev?.descriptor == descriptor) dev else null
             }

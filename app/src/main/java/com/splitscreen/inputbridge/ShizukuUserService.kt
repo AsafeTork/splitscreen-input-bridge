@@ -104,10 +104,18 @@ object ShizukuUserService {
      */
     fun execShellCommand(command: String): String {
         return try {
-            val binder = Shizuku.getBinder() ?: throw IllegalStateException("Shizuku binder not available")
-            val result = binder.execCommand(arrayOf("sh", "-c", command))
-            Log.d(TAG, "execShellCommand: cmd='$command' result=$result")
-            result ?: ""
+            val newProcessMethod = Shizuku::class.java.getDeclaredMethod(
+                "newProcess",
+                Array<String>::class.java,
+                Array<String>::class.java,
+                String::class.java
+            )
+            newProcessMethod.isAccessible = true
+            val process = newProcessMethod.invoke(null, arrayOf("sh", "-c", command), null, null) as ShizukuRemoteProcess
+            val output = process.inputStream.bufferedReader().readText()
+            val exitCode = process.waitFor()
+            Log.d(TAG, "execShellCommand: cmd='$command' exit=$exitCode output='${output.trim()}'")
+            output
         } catch (e: Exception) {
             Log.e(TAG, "execShellCommand failed: cmd='$command' error=${e.message}")
             ""

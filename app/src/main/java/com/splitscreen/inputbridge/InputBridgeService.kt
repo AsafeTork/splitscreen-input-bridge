@@ -774,10 +774,10 @@ class InputBridgeService : Service(), InputManager.InputDeviceListener {
             structuredLogger.warn("Player 2 device disconnected or fingerprint changed", "device_validation")
             stopBridge()
         } else {
-            structuredLogger.info("Device validation passed", "device_validation", mapOf(
-                "player1_fingerprint" to p1Fingerprint,
-                "player2_fingerprint" to p2Fingerprint
-            ))
+            // structuredLogger.info("Device validation passed", "device_validation", mapOf(
+            //     "player1_fingerprint" to p1Fingerprint,
+            //     "player2_fingerprint" to p2Fingerprint
+            // ))
         }
     }
 
@@ -790,7 +790,7 @@ class InputBridgeService : Service(), InputManager.InputDeviceListener {
         try {
             unregisterReceiver(inputDeviceReceiver)
         } catch (e: IllegalArgumentException) {
-            structuredLogger.warn("BroadcastReceiver already unregistered", "service_lifecycle")
+            // structuredLogger.warn("BroadcastReceiver already unregistered", "service_lifecycle")
         }
 
         // Clear callback to prevent memory leaks

@@ -47,11 +47,21 @@ object ShizukuUserService {
      * Shizuku's process context holds this permission, making injection possible.
      */
     fun injectInputEvent(event: InputEvent): Boolean {
+        if (event == null) {
+            Log.e(TAG, "injectInputEvent: event is null")
+            return false
+        }
+
         return try {
             val inputManagerClass = Class.forName("android.hardware.input.InputManager")
             val instanceMethod = inputManagerClass.getDeclaredMethod("getInstance")
             instanceMethod.isAccessible = true
             val instance = instanceMethod.invoke(null)
+
+            if (instance == null) {
+                Log.e(TAG, "injectInputEvent: failed to get InputManager instance")
+                return injectViaShizukuProcess(event)
+            }
 
             val injectMethod = inputManagerClass.getDeclaredMethod(
                 "injectInputEvent",
@@ -63,6 +73,18 @@ object ShizukuUserService {
             val result = injectMethod.invoke(instance, event, INJECT_MODE_WAIT_FOR_FINISH)
             Log.d(TAG, "injectInputEvent result=$result event=${event.javaClass.simpleName}")
             result as? Boolean ?: false
+        } catch (e: ClassNotFoundException) {
+            Log.e(TAG, "ClassNotFoundException in injectInputEvent: ${e.message}")
+            injectViaShizukuProcess(event)
+        } catch (e: NoSuchMethodException) {
+            Log.e(TAG, "NoSuchMethodException in injectInputEvent: ${e.message}")
+            injectViaShizukuProcess(event)
+        } catch (e: IllegalAccessException) {
+            Log.e(TAG, "IllegalAccessException in injectInputEvent: ${e.message}")
+            injectViaShizukuProcess(event)
+        } catch (e: InvocationTargetException) {
+            Log.e(TAG, "InvocationTargetException in injectInputEvent: ${e.message}")
+            injectViaShizukuProcess(event)
         } catch (e: Exception) {
             Log.e(TAG, "injectInputEvent failed via reflection: ${e.message}")
             injectViaShizukuProcess(event)
@@ -77,16 +99,35 @@ object ShizukuUserService {
      */
     private fun injectViaShizukuProcess(event: InputEvent): Boolean {
         if (event !is MotionEvent) return false
+
         return try {
             val x = event.x.toInt()
             val y = event.y.toInt()
+
+            // Validate coordinates are within reasonable screen bounds
+            if (x < 0 || y < 0 || x > 8000 || y > 8000) {
+                Log.w(TAG, "injectViaShizukuProcess: invalid coordinates x=$x, y=$y")
+                return false
+            }
+
             val cmd = when (event.action) {
                 MotionEvent.ACTION_DOWN -> "input tap $x $y"
                 MotionEvent.ACTION_MOVE -> "input swipe $x $y $x $y 16"
                 else -> return false
             }
-            execShellCommand(cmd)
-            true
+
+            val result = execShellCommand(cmd)
+            if (result.isNotBlank()) {
+                Log.d(TAG, "injectViaShizukuProcess success: $cmd")
+                return true
+            }
+            false
+        } catch (e: SecurityException) {
+            Log.e(TAG, "SecurityException in injectViaShizukuProcess: ${e.message}")
+            false
+        } catch (e: IllegalStateException) {
+            Log.e(TAG, "IllegalStateException in injectViaShizukuProcess: ${e.message}")
+            false
         } catch (e: Exception) {
             Log.e(TAG, "injectViaShizukuProcess failed: ${e.message}")
             false
@@ -103,6 +144,11 @@ object ShizukuUserService {
      *   - `input tap X Y`  (fallback injection)
      */
     fun execShellCommand(command: String): String {
+        if (command.isBlank()) {
+            Log.w(TAG, "execShellCommand: empty command")
+            return ""
+        }
+
         return try {
             val newProcessMethod = Shizuku::class.java.getDeclaredMethod(
                 "newProcess",
@@ -111,11 +157,32 @@ object ShizukuUserService {
                 String::class.java
             )
             newProcessMethod.isAccessible = true
-            val process = newProcessMethod.invoke(null, arrayOf("sh", "-c", command), null, null) as ShizukuRemoteProcess
+            val process = newProcessMethod.invoke(null, arrayOf("sh", "-c", command), null, null) as? ShizukuRemoteProcess
+
+            if (process == null) {
+                Log.e(TAG, "execShellCommand: process is null")
+                return ""
+            }
+
             val output = process.inputStream.bufferedReader().readText()
             val exitCode = process.waitFor()
             Log.d(TAG, "execShellCommand: cmd='$command' exit=$exitCode output='${output.trim()}'")
             output
+        } catch (e: ClassNotFoundException) {
+            Log.e(TAG, "ClassNotFoundException in execShellCommand: ${e.message}")
+            ""
+        } catch (e: NoSuchMethodException) {
+            Log.e(TAG, "NoSuchMethodException in execShellCommand: ${e.message}")
+            ""
+        } catch (e: IllegalAccessException) {
+            Log.e(TAG, "IllegalAccessException in execShellCommand: ${e.message}")
+            ""
+        } catch (e: InvocationTargetException) {
+            Log.e(TAG, "InvocationTargetException in execShellCommand: ${e.message}")
+            ""
+        } catch (e: SecurityException) {
+            Log.e(TAG, "SecurityException in execShellCommand: ${e.message}")
+            ""
         } catch (e: Exception) {
             Log.e(TAG, "execShellCommand failed: cmd='$command' error=${e.message}")
             ""
@@ -134,9 +201,17 @@ object ShizukuUserService {
      */
     fun isReady(): Boolean {
         return try {
-            Shizuku.pingBinder() &&
-                    Shizuku.checkSelfPermission() == android.content.pm.PackageManager.PERMISSION_GRANTED
+            val binderAlive = Shizuku.pingBinder()
+            val permissionGranted = Shizuku.checkSelfPermission() == android.content.pm.PackageManager.PERMISSION_GRANTED
+            binderAlive && permissionGranted
+        } catch (e: SecurityException) {
+            Log.e(TAG, "SecurityException in isReady: ${e.message}")
+            false
+        } catch (e: IllegalStateException) {
+            Log.e(TAG, "IllegalStateException in isReady: ${e.message}")
+            false
         } catch (e: Exception) {
+            Log.e(TAG, "Exception in isReady: ${e.message}")
             false
         }
     }

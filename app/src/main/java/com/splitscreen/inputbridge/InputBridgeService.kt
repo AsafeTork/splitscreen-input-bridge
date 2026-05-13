@@ -768,10 +768,10 @@ class InputBridgeService : Service(), InputManager.InputDeviceListener {
 
         // Se algum dispositivo foi desconectado ou o fingerprint mudou, parar a bridge
         if (p1Desc.isNotEmpty() && p1Fingerprint == null) {
-            structuredLogger.warn("Player 1 device disconnected or fingerprint changed", "device_validation")
+            // structuredLogger.warn("Player 1 device disconnected or fingerprint changed", "device_validation")
             stopBridge()
         } else if (p2Desc.isNotEmpty() && p2Fingerprint == null) {
-            structuredLogger.warn("Player 2 device disconnected or fingerprint changed", "device_validation")
+            // structuredLogger.warn("Player 2 device disconnected or fingerprint changed", "device_validation")
             stopBridge()
         } else {
             // structuredLogger.info("Device validation passed", "device_validation", mapOf(

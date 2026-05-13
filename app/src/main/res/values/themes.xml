@@ -1,10 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Base theme needed for the Compose Activity.
-         Since the entire UI is Jetpack Compose, we use a minimal Theme.AppCompat.NoActionBar base. -->
-    <style name="Theme.SplitScreenInputBridge" parent="android:Theme.Material.NoTitleBar">
-        <item name="android:windowBackground">@android:color/black</item>
-        <item name="android:statusBarColor">@android:color/black</item>
-        <item name="android:navigationBarColor">@android:color/black</item>
+    <style name="Theme.SplitScreenInputBridge" parent="Theme.AppCompat.Light.NoActionBar">
+        <item name="colorPrimary">#2196F3</item>
+        <item name="colorPrimaryDark">#1976D2</item>
+        <item name="colorAccent">#FF4081</item>
     </style>
 </resources>

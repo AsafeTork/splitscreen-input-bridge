@@ -580,12 +580,12 @@ class InputBridgeService : Service(), InputManager.InputDeviceListener {
     private suspend fun applySystemHacks() = withContext(Dispatchers.IO) {
         try {
             ShizukuUserService.execShellCommand("settings put global multi_window_focus_enabled 1")
-            structuredLogger.info("System hack applied", "system_hack", mapOf(
-                "setting" to "multi_window_focus_enabled",
-                "value" to "1"
-            ))
+            // structuredLogger.info("System hack applied", "system_hack", mapOf(
+            //     "setting" to "multi_window_focus_enabled",
+            //     "value" to "1"
+            // ))
         } catch (e: Exception) {
-            structuredLogger.error("Failed to apply system hack", "system_hack_error", null, e)
+            // structuredLogger.error("Failed to apply system hack", "system_hack_error", null, e)
         }
     }
 
@@ -593,7 +593,7 @@ class InputBridgeService : Service(), InputManager.InputDeviceListener {
         watchdogHandler.removeCallbacks(watchdogRunnable)
 
         // Adaptive watchdog interval based on battery level and config
-        val config = configManager.configState.value
+        // val config = configManager.configState.value
         val batteryLevel = getBatteryLevel()
 
         val adaptiveInterval = if (config.adaptiveWatchdogEnabled && batteryLevel < config.lowBatteryThreshold) {

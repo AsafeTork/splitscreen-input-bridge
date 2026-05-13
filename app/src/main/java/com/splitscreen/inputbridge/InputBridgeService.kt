@@ -656,16 +656,16 @@ class InputBridgeService : Service(), InputManager.InputDeviceListener {
                     try {
                         applySystemHacks()
                     } catch (e: Exception) {
-                        structuredLogger.error("Failed to restart bridge", "bridge_error", null, e)
+                        // structuredLogger.error("Failed to restart bridge", "bridge_error", null, e)
                     }
                 }
             } else {
-                structuredLogger.debug("Shizuku health check passed", "shizuku_health", mapOf(
-                    "alive" to true
-                ))
+                // structuredLogger.debug("Shizuku health check passed", "shizuku_health", mapOf(
+                //     "alive" to true
+                // ))
             }
         } catch (e: SecurityException) {
-            structuredLogger.error("SecurityException in watchdog", "watchdog_error", null, e)
+            // structuredLogger.error("SecurityException in watchdog", "watchdog_error", null, e)
         } catch (e: IllegalStateException) {
             // structuredLogger.error("IllegalStateException in watchdog", "watchdog_error", null, e)
         } catch (e: Exception) {

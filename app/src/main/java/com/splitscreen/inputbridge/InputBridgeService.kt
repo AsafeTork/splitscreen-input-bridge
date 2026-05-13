@@ -68,9 +68,7 @@ class InputBridgeService : Service(), InputManager.InputDeviceListener {
     private lateinit var choreographer: Choreographer
     private lateinit var sharedPrefs: SharedPreferences
 
-    private val player1Descriptor = AtomicReference("")
-    private val player2Descriptor = AtomicReference("")
-    private val bridgeActive = AtomicBoolean(false)
+    private val fingerprintCache = java.util.concurrent.ConcurrentHashMap<Int, String>()
 
     private var statusCallback: WeakReference<((String, String, Boolean) -> Unit)>? = null
 
@@ -96,11 +94,12 @@ class InputBridgeService : Service(), InputManager.InputDeviceListener {
     @Volatile private var screenHeight: Int = 0
     @Volatile private var screenDensity: Float = 1.0f
 
-    private val mainHandler = Handler(Looper.getMainLooper())
-    private val watchdogHandler = Handler(Looper.getMainLooper())
+    private val watchdogThread = android.os.HandlerThread("WatchdogThread").apply { start() }
+    private val watchdogHandler = Handler(watchdogThread.looper)
 
     @Volatile private var isWatchdogRunning = false
-    private var currentFrameCallback: Choreographer.FrameCallback? = null
+    // Atomic holder for the latest MotionEvent to be processed by the FrameCallback
+    private val latestEvent = java.util.concurrent.atomic.AtomicReference<MotionEvent?>()
     private val watchdogRunnable = object : Runnable {
         override fun run() {
             if (isWatchdogRunning) return
@@ -340,41 +339,38 @@ class InputBridgeService : Service(), InputManager.InputDeviceListener {
      * This creates a unique signature that persists across device reconnections.
      */
     private fun getDeviceMolecularFingerprint(device: InputDevice): String {
-        val baseDescriptor = device.descriptor
+        // Return from cache if already computed (avoids repeated shell calls)
+        return fingerprintCache.computeIfAbsent(device.id) {
+            val baseDescriptor = device.descriptor
 
-        try {
-            // Extract device info from /proc/bus/input/devices
-            val deviceInfo = ShizukuUserService.execShellCommand(
-                "cat /proc/bus/input/devices | grep -A 10 'N: Name=\"${device.name}\"'
-            )
+            try {
+                // Extract device info from /proc/bus/input/devices
+                val deviceInfo = ShizukuUserService.execShellCommand(
+                    "cat /proc/bus/input/devices | grep -A 10 'N: Name=\"${device.name}\"'"
+                )
 
-            // Parse unique ID (EVIOCGUNIQ equivalent)
-            val uniqueId = deviceInfo.lines().find { it.startsWith("U: Uniq=") }
-                ?.substringAfter("=")?.trim() ?: ""
+                // Parse unique ID (EVIOCGUNIQ equivalent)
+                val uniqueId = deviceInfo.lines().find { it.startsWith("U: Uniq=") }
+                    ?.substringAfter("=")?.trim() ?: ""
 
-            // Parse physical path (EVIOCGPHYS equivalent - may contain MAC for Bluetooth)
-            val physicalPath = deviceInfo.lines().find { it.startsWith("P: ") }
-                ?.substringAfter("P: ")?.trim() ?: ""
+                // Parse physical path (EVIOCGPHYS equivalent - may contain MAC for Bluetooth)
+                val physicalPath = deviceInfo.lines().find { it.startsWith("P: ") }
+                    ?.substringAfter("P: ")?.trim() ?: ""
 
-            // Parse device ID components (EVIOCGID equivalent)
-            val idLine = deviceInfo.lines().find { it.startsWith("I: Bus=") }
-            val busType = idLine?.substringAfter("Bus=")?.substringBefore(" ")?.toIntOrNull() ?: 0
-            val vendorId = idLine?.substringAfter("Vendor=")?.substringBefore(" ")?.toIntOrNull() ?: 0
-            val productId = idLine?.substringAfter("Product=")?.substringBefore(" ")?.toIntOrNull() ?: 0
-            val version = idLine?.substringAfter("Version=")?.toIntOrNull() ?: 0
+                // Parse device ID components (EVIOCGID equivalent)
+                val idLine = deviceInfo.lines().find { it.startsWith("I: Bus=") }
+                val busType = idLine?.substringAfter("Bus=")?.substringBefore(" ")?.toIntOrNull() ?: 0
+                val vendorId = idLine?.substringAfter("Vendor=")?.substringBefore(" ")?.toIntOrNull() ?: 0
+                val productId = idLine?.substringAfter("Product=")?.substringBefore(" ")?.toIntOrNull() ?: 0
+                val version = idLine?.substringAfter("Version=")?.toIntOrNull() ?: 0
 
-            // Create molecular fingerprint combining all immutable identifiers
-            return "$baseDescriptor|$uniqueId|$physicalPath|$busType:$vendorId:$productId:$version"
+                // Create molecular fingerprint combining all immutable identifiers
+                "${baseDescriptor}|${uniqueId}|${physicalPath}|${busType}:${vendorId}:${productId}:$version"
 
-        } catch (e: SecurityException) {
-            structuredLogger.warn("SecurityException in fingerprinting", "device_fingerprint", null, e)
-            return baseDescriptor
-        } catch (e: IllegalStateException) {
-            structuredLogger.warn("IllegalStateException in fingerprinting", "device_fingerprint", null, e)
-            return baseDescriptor
-        } catch (e: Exception) {
-            structuredLogger.warn("Failed to create molecular fingerprint", "device_fingerprint", null, e)
-            return baseDescriptor
+            } catch (e: Exception) {
+                // Return base descriptor as fallback if fingerprinting fails
+                baseDescriptor
+            }
         }
     }
 

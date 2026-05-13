@@ -170,7 +170,17 @@ class InputBridgeService : Service(), InputManager.InputDeviceListener {
 
         inputManager.registerInputDeviceListener(this, mainHandler)
 
-        // Registrar BroadcastReceiver para detectar novos dispositivos
+        // Inicializar e registrar BroadcastReceiver para detectar novos dispositivos
+        inputDeviceReceiver = object : BroadcastReceiver() {
+            override fun onReceive(context: Context, intent: Intent) {
+                if (Intent.ACTION_INPUT_DEVICE_ADDED == intent.action) {
+                    val deviceId = intent.getIntExtra(Intent.EXTRA_DEVICE_ID, -1)
+                    if (deviceId != -1 && bridgeActive.get()) {
+                        revalidateDeviceFingerprints()
+                    }
+                }
+            }
+        }
         val filter = IntentFilter(Intent.ACTION_INPUT_DEVICE_ADDED)
         registerReceiver(inputDeviceReceiver, filter)
 
@@ -732,23 +742,14 @@ class InputBridgeService : Service(), InputManager.InputDeviceListener {
      * BroadcastReceiver para detectar quando novos dispositivos de entrada são conectados
      * e revalidar os fingerprints para garantir que Player 2 não assumiu o lugar do Player 1.
      */
-    private val inputDeviceReceiver = object : BroadcastReceiver() {
-        override fun onReceive(context: Context, intent: Intent) {
-            if (Intent.ACTION_INPUT_DEVICE_ADDED == intent.action) {
-                val deviceId = intent.getIntExtra(Intent.EXTRA_DEVICE_ID, -1)
-                if (deviceId != -1 && bridgeActive.get()) {
-                    revalidateDeviceFingerprints()
-                }
-            }
-        }
-    }
+    private lateinit var inputDeviceReceiver: BroadcastReceiver
 
     /**
      * Revalida todos os fingerprints dos dispositivos conectados para garantir
      * que a associação Player 1/Player 2 ainda está correta.
      */
     private fun revalidateDeviceFingerprints() {
-        structuredLogger.info("Revalidating device fingerprints", "device_validation")
+        // structuredLogger.info("Revalidating device fingerprints", "device_validation")
 
         val currentDevices = InputDevice.getDeviceIds()
         val currentFingerprints = mutableMapOf<String, String>() // descriptor -> fingerprint

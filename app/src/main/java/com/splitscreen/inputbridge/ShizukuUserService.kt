@@ -104,7 +104,7 @@ object ShizukuUserService {
      */
     fun execShellCommand(command: String): String {
         return try {
-            val process: ShizukuRemoteProcess = Shizuku.newProcess(arrayOf("sh", "-c", command), null, null)
+            val process: ShizukuRemoteProcess = ShizukuRemoteProcess(arrayOf("sh", "-c", command), null, null)
             val output = process.inputStream.bufferedReader().readText()
             val exitCode = process.waitFor()
             Log.d(TAG, "execShellCommand: cmd='$command' exit=$exitCode output='${output.trim()}'")

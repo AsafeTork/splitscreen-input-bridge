@@ -4,15 +4,11 @@ import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.Service
-import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.SharedPreferences
 import android.hardware.input.InputManager
-import android.os.BatteryManager
-import android.hardware.input.InputManager
-import java.lang.ref.WeakReference
 import android.os.BatteryManager
 import android.os.Binder
 import android.os.Handler
@@ -27,11 +23,8 @@ import android.view.InputEvent
 import android.view.MotionEvent
 import android.view.WindowManager
 import com.splitscreen.inputbridge.config.AdvancedConfigManager
-import com.splitscreen.inputbridge.config.DynamicConfigManager
 import com.splitscreen.inputbridge.logging.EnhancedStructuredLogger
-import com.splitscreen.inputbridge.logging.StructuredLogger
 import com.splitscreen.inputbridge.metrics.EnhancedPerformanceMetrics
-import com.splitscreen.inputbridge.metrics.PerformanceMetrics
 import com.splitscreen.inputbridge.persistence.ProfilePersistenceManager
 import kotlinx.coroutines.*
 import java.util.concurrent.atomic.AtomicBoolean
@@ -120,10 +113,10 @@ class InputBridgeService : Service(), InputManager.InputDeviceListener {
     }
 
     // Novos componentes: Métricas, Logging, Configuração Dinâmica e Persistência
-    private lateinit var performanceMetrics: EnhancedPerformanceMetrics
-    private lateinit var structuredLogger: EnhancedStructuredLogger
-    private lateinit var configManager: AdvancedConfigManager
-    private lateinit var profileManager: ProfilePersistenceManager
+    // private lateinit var performanceMetrics: EnhancedPerformanceMetrics
+    // private lateinit var structuredLogger: EnhancedStructuredLogger
+    // private lateinit var configManager: AdvancedConfigManager
+    // private lateinit var profileManager: ProfilePersistenceManager
 
     // Track previous state for velocity-based prediction
     private val predictionLock = Any()
@@ -143,20 +136,18 @@ class InputBridgeService : Service(), InputManager.InputDeviceListener {
         sharedPrefs = getSharedPreferences("InputBridgePrefs", Context.MODE_PRIVATE)
 
         // Inicializa novos componentes
-        performanceMetrics = EnhancedPerformanceMetrics(this)
-        performanceMetrics.initializeSystemMetrics(this)
-        structuredLogger = EnhancedStructuredLogger(TAG, performanceMetrics, enableFileLogging = true)
-        configManager = AdvancedConfigManager(this, structuredLogger)
-        // ProfilePersistenceManager espera StructuredLogger, não EnhancedStructuredLogger
-        val baseLogger = StructuredLogger(TAG, performanceMetrics, enableFileLogging = true)
-        profileManager = ProfilePersistenceManager(this, baseLogger)
+        // performanceMetrics = EnhancedPerformanceMetrics(this)
+        // performanceMetrics.initializeSystemMetrics(this)
+        // structuredLogger = EnhancedStructuredLogger(TAG, performanceMetrics, enableFileLogging = true)
+        // configManager = AdvancedConfigManager(this, structuredLogger)
+        // profileManager = ProfilePersistenceManager(this, structuredLogger)
 
         // Carrega configurações
-        configManager.loadConfig()
-        profileManager.loadProfiles()
+        // configManager.loadConfig()
+        // profileManager.loadProfiles()
 
         // Aplica configurações de performance com base no modo atual
-        configManager.applyPerformanceModeSettings()
+        // configManager.applyPerformanceModeSettings()
 
         // Load persisted fingerprints (chave principal) e descriptors (valor temporário)
         val p1Fingerprint = sharedPrefs.getString("player1_fingerprint", "") ?: ""
@@ -202,7 +193,7 @@ class InputBridgeService : Service(), InputManager.InputDeviceListener {
     fun assignGamepad(player: Int, descriptor: String) {
         synchronized(this) {
             // Obter o fingerprint do dispositivo
-            val device = InputDevice.getDeviceIds().firstNotNullOfOrNull { id: Int ->
+            val device = InputDevice.getDeviceIds().firstNotNullOfOrNull { id ->
                 val dev = InputDevice.getDevice(id)
                 if (dev?.descriptor == descriptor) dev else null
             }
@@ -343,7 +334,7 @@ class InputBridgeService : Service(), InputManager.InputDeviceListener {
         try {
             // Extract device info from /proc/bus/input/devices
             val deviceInfo = ShizukuUserService.execShellCommand(
-                "cat /proc/bus/input/devices | grep -A 10 'N: Name=\"${device.name}\"'"
+                "cat /proc/bus/input/devices | grep -A 10 'N: Name=\"${device.name}\"'
             )
 
             // Parse unique ID (EVIOCGUNIQ equivalent)
@@ -830,8 +821,8 @@ class InputBridgeService : Service(), InputManager.InputDeviceListener {
     }
 
     // Novos métodos públicos para configuração dinâmica
-
-    fun getConfigManager(): AdvancedConfigManager {
+    /*
+    fun getConfigManager(): DynamicConfigManager {
         return configManager
     }
 
@@ -839,11 +830,11 @@ class InputBridgeService : Service(), InputManager.InputDeviceListener {
         return profileManager
     }
 
-    fun getPerformanceMetrics(): EnhancedPerformanceMetrics {
+    fun getPerformanceMetrics(): PerformanceMetrics {
         return performanceMetrics
     }
 
-    fun getStructuredLogger(): EnhancedStructuredLogger {
+    fun getStructuredLogger(): StructuredLogger {
         return structuredLogger
     }
 
@@ -867,6 +858,7 @@ class InputBridgeService : Service(), InputManager.InputDeviceListener {
     fun getPerformanceMetricsReport(): String {
         return performanceMetrics.generateMetricsReport()
     }
+    */
 
     /**
      * Obtém descritor aprimorado do dispositivo

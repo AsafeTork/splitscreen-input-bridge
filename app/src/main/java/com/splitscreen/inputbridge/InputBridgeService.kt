@@ -667,7 +667,7 @@ class InputBridgeService : Service(), InputManager.InputDeviceListener {
         } catch (e: SecurityException) {
             structuredLogger.error("SecurityException in watchdog", "watchdog_error", null, e)
         } catch (e: IllegalStateException) {
-            structuredLogger.error("IllegalStateException in watchdog", "watchdog_error", null, e)
+            // structuredLogger.error("IllegalStateException in watchdog", "watchdog_error", null, e)
         } catch (e: Exception) {
             // structuredLogger.error("Watchdog check failed", "watchdog_error", null, e)
         } finally {

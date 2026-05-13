@@ -802,9 +802,9 @@ class InputBridgeService : Service(), InputManager.InputDeviceListener {
         currentFrameCallback?.let { choreographer.removeFrameCallback(it) }
 
         // Clean up new components
-        configManager.cleanup()
-        profileManager.cleanup()
-        structuredLogger.shutdown()
+        // configManager.cleanup()
+        // profileManager.cleanup()
+        // structuredLogger.shutdown()
 
         // Revert system hacks
         try {

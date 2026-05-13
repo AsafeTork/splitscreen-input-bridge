@@ -104,7 +104,7 @@ object ShizukuUserService {
      */
     fun execShellCommand(command: String): String {
         return try {
-            val process: ShizukuRemoteProcess = ShizukuRemoteProcess.newProcess(
+            val process: ShizukuRemoteProcess = Shizuku.newProcess(
                 arrayOf("sh", "-c", command),
                 null,
                 null

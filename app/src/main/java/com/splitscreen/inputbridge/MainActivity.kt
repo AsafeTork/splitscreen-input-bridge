@@ -1,5 +1,4 @@
 @file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
-@file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 package com.splitscreen.inputbridge
 
 import android.content.ComponentName
@@ -103,7 +102,7 @@ class MainActivity : ComponentActivity(), InputManager.InputDeviceListener {
     }
 
     private fun refreshGamepads() {
-        val gamepads = InputDevice.getDeviceIds()
+        val gamepads = InputDevice.getDeviceIds().toList()
             .mapNotNull { InputDevice.getDevice(it) }
             .filter { device ->
                 device.sources and InputDevice.SOURCE_GAMEPAD == InputDevice.SOURCE_GAMEPAD ||

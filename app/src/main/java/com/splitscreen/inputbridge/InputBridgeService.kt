@@ -137,11 +137,11 @@ class InputBridgeService : Service(), InputManager.InputDeviceListener {
         sharedPrefs = getSharedPreferences("InputBridgePrefs", Context.MODE_PRIVATE)
 
         // Inicializa novos componentes
-        // performanceMetrics = EnhancedPerformanceMetrics(this)
-        // performanceMetrics.initializeSystemMetrics(this)
-        // structuredLogger = EnhancedStructuredLogger(TAG, performanceMetrics, enableFileLogging = true)
-        // configManager = AdvancedConfigManager(this, structuredLogger)
-        // profileManager = ProfilePersistenceManager(this, structuredLogger)
+        performanceMetrics = EnhancedPerformanceMetrics(this)
+        performanceMetrics.initializeSystemMetrics(this)
+        structuredLogger = EnhancedStructuredLogger(TAG, performanceMetrics, enableFileLogging = true)
+        configManager = AdvancedConfigManager(this, structuredLogger)
+        profileManager = ProfilePersistenceManager(this, structuredLogger)
 
         // Carrega configurações
         // configManager.loadConfig()

@@ -718,9 +718,9 @@ class InputBridgeService : Service(), InputManager.InputDeviceListener {
     }
 
     override fun onInputDeviceAdded(deviceId: Int) {
-        structuredLogger.debug("Input device added", "device_event", mapOf(
-            "device_id" to deviceId
-        ))
+        // structuredLogger.debug("Input device added", "device_event", mapOf(
+        //     "device_id" to deviceId
+        // ))
     }
 
     override fun onInputDeviceRemoved(deviceId: Int) {
@@ -728,10 +728,10 @@ class InputBridgeService : Service(), InputManager.InputDeviceListener {
         if (device != null && bridgeActive.get()) {
             if (device.descriptor == player1Descriptor.get() || device.descriptor == player2Descriptor.get()) {
                 stopBridge()
-                structuredLogger.warn("Bridge stopped: assigned device removed", "bridge_error", mapOf(
-                    "device_id" to deviceId,
-                    "descriptor" to device.descriptor
-                ))
+                // structuredLogger.warn("Bridge stopped: assigned device removed", "bridge_error", mapOf(
+                //     "device_id" to deviceId,
+                //     "descriptor" to device.descriptor
+                // ))
             }
         }
     }

@@ -1,25 +1,16 @@
 pluginManagement {
     repositories {
-        google {
-            content {
-                includeGroupByRegex("com\\.android.*")
-                includeGroupByRegex("com\\.google.*")
-                includeGroupByRegex("androidx.*")
-            }
-        }
+        google()
         mavenCentral()
         gradlePluginPortal()
     }
 }
-
 dependencyResolutionManagement {
     repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
     repositories {
         google()
         mavenCentral()
-        // Shizuku and HiddenApiBypass are published to Maven Central — no extra repos needed
     }
 }
-
-rootProject.name = "SplitScreenInputBridge"
+rootProject.name = "splitscreen-input-bridge"
 include ':app'

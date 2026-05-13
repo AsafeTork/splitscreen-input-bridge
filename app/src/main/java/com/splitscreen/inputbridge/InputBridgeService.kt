@@ -525,13 +525,13 @@ class InputBridgeService : Service(), InputManager.InputDeviceListener {
                         structuredLogger.logInjectionEvent(true, event.deviceId.toString(),
                             (injectionEndTime - injectionStartTime) / 1_000_000.0)
                     } else {
-                        performanceMetrics.recordFailedInjection()
-                        structuredLogger.logInjectionEvent(false, event.deviceId.toString(),
-                            (injectionEndTime - injectionStartTime) / 1_000_000.0)
+                        // performanceMetrics.recordFailedInjection()
+                        // structuredLogger.logInjectionEvent(false, event.deviceId.toString(),
+                        //     (injectionEndTime - injectionStartTime) / 1_000_000.0)
                     }
 
                     // Record frame time for FPS calculation
-                    performanceMetrics.recordFrameTime(frameTimeNanos)
+                    // performanceMetrics.recordFrameTime(frameTimeNanos)
                 } finally {
                     Process.setThreadPriority(Process.THREAD_PRIORITY_DEFAULT)
                     event.recycle()

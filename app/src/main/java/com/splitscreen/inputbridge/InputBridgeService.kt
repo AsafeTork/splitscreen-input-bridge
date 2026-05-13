@@ -4,11 +4,13 @@ import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.Service
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.SharedPreferences
 import android.hardware.input.InputManager
+import java.lang.ref.WeakReference
 import android.os.BatteryManager
 import android.os.Binder
 import android.os.Handler
@@ -23,8 +25,11 @@ import android.view.InputEvent
 import android.view.MotionEvent
 import android.view.WindowManager
 import com.splitscreen.inputbridge.config.AdvancedConfigManager
+import com.splitscreen.inputbridge.config.DynamicConfigManager
 import com.splitscreen.inputbridge.logging.EnhancedStructuredLogger
+import com.splitscreen.inputbridge.logging.StructuredLogger
 import com.splitscreen.inputbridge.metrics.EnhancedPerformanceMetrics
+import com.splitscreen.inputbridge.metrics.PerformanceMetrics
 import com.splitscreen.inputbridge.persistence.ProfilePersistenceManager
 import kotlinx.coroutines.*
 import java.util.concurrent.atomic.AtomicBoolean
@@ -334,7 +339,7 @@ class InputBridgeService : Service(), InputManager.InputDeviceListener {
         try {
             // Extract device info from /proc/bus/input/devices
             val deviceInfo = ShizukuUserService.execShellCommand(
-                "cat /proc/bus/input/devices | grep -A 10 'N: Name=\"${device.name}\"'
+                "cat /proc/bus/input/devices | grep -A 10 'N: Name=\"${device.name}\"'"
             )
 
             // Parse unique ID (EVIOCGUNIQ equivalent)
@@ -822,7 +827,7 @@ class InputBridgeService : Service(), InputManager.InputDeviceListener {
 
     // Novos métodos públicos para configuração dinâmica
 
-    fun getConfigManager(): DynamicConfigManager {
+    fun getConfigManager(): AdvancedConfigManager {
         return configManager
     }
 
@@ -830,11 +835,11 @@ class InputBridgeService : Service(), InputManager.InputDeviceListener {
         return profileManager
     }
 
-    fun getPerformanceMetrics(): PerformanceMetrics {
+    fun getPerformanceMetrics(): EnhancedPerformanceMetrics {
         return performanceMetrics
     }
 
-    fun getStructuredLogger(): StructuredLogger {
+    fun getStructuredLogger(): EnhancedStructuredLogger {
         return structuredLogger
     }
 

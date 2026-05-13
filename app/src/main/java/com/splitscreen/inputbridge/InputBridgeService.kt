@@ -596,10 +596,15 @@ class InputBridgeService : Service(), InputManager.InputDeviceListener {
         // val config = configManager.configState.value
         val batteryLevel = getBatteryLevel()
 
-        val adaptiveInterval = if (config.adaptiveWatchdogEnabled && batteryLevel < config.lowBatteryThreshold) {
-            config.watchdogIntervalMs * 2 // Reduce frequency when battery is low
+        // Valores padrão para o watchdog (configManager está comentado)
+        val adaptiveWatchdogEnabled = true
+        val lowBatteryThreshold = 20
+        val watchdogIntervalMs = 5000L
+
+        val adaptiveInterval = if (adaptiveWatchdogEnabled && batteryLevel < lowBatteryThreshold) {
+            watchdogIntervalMs * 2 // Reduce frequency when battery is low
         } else {
-            config.watchdogIntervalMs
+            watchdogIntervalMs
         }
 
         watchdogHandler.postDelayed(watchdogRunnable, adaptiveInterval)

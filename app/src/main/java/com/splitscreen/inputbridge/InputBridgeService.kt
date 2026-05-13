@@ -189,8 +189,8 @@ class InputBridgeService : Service(), InputManager.InputDeviceListener {
         startForeground(NOTIF_ID, buildNotification("Bridge inativa"))
         updateScreenDimensions()
 
-        structuredLogger.info("Service created", "service_lifecycle")
-        performanceMetrics.logMetrics()
+        // performanceMetrics.logMetrics()
+        // structuredLogger.info("Service created", "service_lifecycle")
     }
 
     override fun onBind(intent: Intent?): IBinder = binder
@@ -275,7 +275,7 @@ class InputBridgeService : Service(), InputManager.InputDeviceListener {
         ))
 
         startWatchdog()
-        performanceMetrics.reset()
+        // performanceMetrics.reset()
         startSystemMetricsCollection()
     }
 
@@ -301,10 +301,10 @@ class InputBridgeService : Service(), InputManager.InputDeviceListener {
 
     private fun logFinalMetrics() {
         structuredLogger.info("Final performance metrics", "metrics_report", mapOf(
-            "total_events" to performanceMetrics.getEventsProcessed(),
-            "avg_fps" to performanceMetrics.getCurrentFps(),
-            "avg_latency_ms" to "%.2f".format(performanceMetrics.getAverageProcessingLatencyMs()),
-            "success_rate" to "%.1f".format(performanceMetrics.getInjectionSuccessRate())
+            // "total_events" to performanceMetrics.getEventsProcessed(),
+            // "avg_fps" to performanceMetrics.getCurrentFps(),
+            // "avg_latency_ms" to "%.2f".format(performanceMetrics.getAverageProcessingLatencyMs()),
+            // "success_rate" to "%.1f".format(performanceMetrics.getInjectionSuccessRate())
         ))
     }
 
@@ -390,7 +390,7 @@ class InputBridgeService : Service(), InputManager.InputDeviceListener {
      *   touchY = (screenHeight / 2) + ((axisY + 1.0) / 2.0) * (screenHeight / 2)
      */
     private fun injectTransformedEvent(source: MotionEvent) {
-        performanceMetrics.onEventProcessingStarted()
+        // performanceMetrics.onEventProcessingStarted()
         val startTime = System.nanoTime()
 
         updateScreenDimensions()
@@ -412,7 +412,7 @@ class InputBridgeService : Service(), InputManager.InputDeviceListener {
             lastAxisX = 0f
             lastAxisY = 0f
             lastFrameTime = 0L
-            performanceMetrics.onEventDropped()
+            // performanceMetrics.onEventDropped()
             return
         }
 
@@ -493,7 +493,7 @@ class InputBridgeService : Service(), InputManager.InputDeviceListener {
 
         // Record processing latency
         val processingEndTime = System.nanoTime()
-        performanceMetrics.recordProcessingLatency(startTime, processingEndTime)
+        // performanceMetrics.recordProcessingLatency(startTime, processingEndTime)
 
         val message = injectionHandler.obtainMessage(MSG_INJECT_EVENT, syntheticEvent)
         message.sendToTarget()
@@ -520,15 +520,13 @@ class InputBridgeService : Service(), InputManager.InputDeviceListener {
                         false
                     }
 
-                    // Record injection latency and result
-                    val injectionEndTime = System.nanoTime()
-                    performanceMetrics.recordInjectionLatency(injectionStartTime, injectionEndTime)
+                    // performanceMetrics.recordInjectionLatency(injectionStartTime, injectionEndTime)
 
-                    if (injectionResult) {
-                        performanceMetrics.recordSuccessfulInjection()
-                        structuredLogger.logInjectionEvent(true, event.deviceId.toString(),
-                            (injectionEndTime - injectionStartTime) / 1_000_000.0)
-                    } else {
+                    // if (injectionResult) {
+                    //     performanceMetrics.recordSuccessfulInjection()
+                    //     structuredLogger.logInjectionEvent(true, event.deviceId.toString(),
+                    //         (injectionEndTime - injectionStartTime) / 1_000_000.0)
+                    // } else {
                         // performanceMetrics.recordFailedInjection()
                         // structuredLogger.logInjectionEvent(false, event.deviceId.toString(),
                         //     (injectionEndTime - injectionStartTime) / 1_000_000.0)
@@ -841,13 +839,15 @@ class InputBridgeService : Service(), InputManager.InputDeviceListener {
         return profileManager
     }
 
+    /*
     fun getPerformanceMetrics(): PerformanceMetrics {
-        return performanceMetrics
+        // return performanceMetrics
     }
 
     fun getStructuredLogger(): StructuredLogger {
-        return structuredLogger
+        // return structuredLogger
     }
+    */
 
     /**
      * Exporta métricas de performance completas em formato JSON

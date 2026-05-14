@@ -28,6 +28,23 @@ class WatchdogWorker(
         // Input keys
         const val KEY_BRIDGE_ACTIVE = "bridge_active"
         const val KEY_BATTERY_LEVEL = "battery_level"
+
+        /**
+         * Calculate adaptive watchdog interval based on conditions
+         */
+        fun calculateAdaptiveInterval(batteryLevel: Int, isCharging: Boolean): Long {
+            // Base interval: 5 minutes
+            var interval = 5L * 60 * 1000
+
+            // Adjust based on battery level
+            when {
+                batteryLevel < 15 -> interval *= 3 // 15 minutes when battery critical
+                batteryLevel < 30 -> interval *= 2 // 10 minutes when battery low
+                isCharging -> interval = 2L * 60 * 1000 // 2 minutes when charging
+            }
+
+            return interval
+        }
     }
 
     override suspend fun doWork(): Result {
@@ -102,22 +119,4 @@ class WatchdogWorker(
         }
     }
 
-    /**
-     * Calculate adaptive watchdog interval based on conditions
-     */
-    companion object {
-        fun calculateAdaptiveInterval(batteryLevel: Int, isCharging: Boolean): Long {
-            // Base interval: 5 minutes
-            var interval = 5L * 60 * 1000
-
-            // Adjust based on battery level
-            when {
-                batteryLevel < 15 -> interval *= 3 // 15 minutes when battery critical
-                batteryLevel < 30 -> interval *= 2 // 10 minutes when battery low
-                isCharging -> interval = 2L * 60 * 1000 // 2 minutes when charging
-            }
-
-            return interval
-        }
-    }
 }

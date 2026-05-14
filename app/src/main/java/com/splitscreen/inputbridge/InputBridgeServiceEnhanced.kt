@@ -10,6 +10,7 @@ import android.content.IntentFilter
 import android.hardware.input.InputManager
 import android.os.BatteryManager
 import android.os.Binder
+import android.os.Handler
 import android.os.IBinder
 import android.util.DisplayMetrics
 import android.util.Log
@@ -19,7 +20,11 @@ import android.view.InputEvent
 import android.view.MotionEvent
 import android.view.WindowManager
 import androidx.work.WorkManager
+import com.splitscreen.inputbridge.config.AdvancedConfigManager
+import com.splitscreen.inputbridge.logging.EnhancedStructuredLogger
+import com.splitscreen.inputbridge.metrics.EnhancedPerformanceMetrics
 import com.splitscreen.inputbridge.metrics.PerformanceMetrics
+import com.splitscreen.inputbridge.persistence.ProfilePersistenceManager
 import com.splitscreen.inputbridge.repository.ControllerRegistry
 import com.splitscreen.inputbridge.repository.ShizukuServiceInterface
 import com.splitscreen.inputbridge.repository.ShizukuServiceRepository
@@ -119,7 +124,7 @@ class InputBridgeServiceEnhanced : Service(), InputManager.InputDeviceListener {
         choreographer = Choreographer.getInstance()
 
         // Register for input device events
-        inputManager.registerInputDeviceListener(this, mainHandler)
+        inputManager.registerInputDeviceListener(this, injectionHandler)
 
         // Initialize notification channel
         createNotificationChannel()
@@ -508,7 +513,7 @@ class InputBridgeServiceEnhanced : Service(), InputManager.InputDeviceListener {
                     Log.d(TAG, "Injection metrics - Choreographer: ${"%.2f".format(choreographerLatency)}ms, " +
                                 "Injection: ${"%.2f".format(injectionDuration)}ms, " +
                                 "Success: $success, " +
-                                "FPS: ${performanceMetrics.currentFPS}")
+                                "FPS: ${performanceMetrics.currentFPS()}")
                 } finally {
                     android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_DEFAULT)
                     event.recycle()

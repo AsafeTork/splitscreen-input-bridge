@@ -55,6 +55,20 @@ class PerformanceMetrics(private val context: Context? = null) {
     }
 
     /**
+     * Registra o início da injeção de evento
+     */
+    fun onInjectionStarted() {
+        eventsProcessed.incrementAndGet()
+    }
+
+    /**
+     * Inicia o rastreamento de métricas
+     */
+    fun startTracking() {
+        // Método vazio para compatibilidade com a interface do EnhancedPerformanceMetrics
+    }
+
+    /**
      * Registra um evento descartado
      */
     fun onEventDropped() {
@@ -67,6 +81,14 @@ class PerformanceMetrics(private val context: Context? = null) {
     fun recordProcessingLatency(startTime: Long, endTime: Long) {
         val latency = endTime - startTime
         processingLatency.set(latency)
+        latencySamples.add(latency)
+    }
+
+    /**
+     * Registra a latência de injeção
+     */
+    fun recordInjectionLatency(latency: Long) {
+        injectionLatency.set(latency)
         latencySamples.add(latency)
     }
 
@@ -97,10 +119,37 @@ class PerformanceMetrics(private val context: Context? = null) {
     }
 
     /**
+     * Atualiza o FPS
+     */
+    fun updateFPS() {
+        // O FPS é atualizado automaticamente no recordFrameTime
+        // Este método é um placeholder para compatibilidade
+    }
+
+    /**
+     * Obtém o FPS atual
+     */
+    fun currentFPS(): Int {
+        return currentFps.get()
+    }
+
+    /**
      * Registra uma injeção bem-sucedida
      */
     fun recordSuccessfulInjection() {
         successfulInjections.incrementAndGet()
+        totalInjections.incrementAndGet()
+    }
+
+    /**
+     * Registra o sucesso da injeção
+     */
+    fun recordInjectionSuccess(success: Boolean) {
+        if (success) {
+            successfulInjections.incrementAndGet()
+        } else {
+            failedInjections.incrementAndGet()
+        }
         totalInjections.incrementAndGet()
     }
 
@@ -117,6 +166,22 @@ class PerformanceMetrics(private val context: Context? = null) {
      */
     fun recordJitter(jitter: Long) {
         jitterSamples.add(jitter)
+    }
+
+    /**
+     * Registra a latência do Choreographer
+     */
+    fun recordChoreographerLatency(latency: Float) {
+        // Converter para Long e adicionar às amostras de latência
+        latencySamples.add((latency * 1_000_000).toLong())
+    }
+
+    /**
+     * Registra a duração da injeção
+     */
+    fun recordInjectionDuration(duration: Float) {
+        // Converter para Long e adicionar às amostras de latência
+        latencySamples.add((duration * 1_000_000).toLong())
     }
 
     /**

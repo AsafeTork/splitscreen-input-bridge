@@ -101,7 +101,7 @@ class ShizukuMonitor(private val context: Context) {
         try {
             val isBinderAlive = Shizuku.pingBinder()
             val isPermissionGranted = try {
-                ShizukuUserService.isPermissionGranted()
+                Shizuku.checkSelfPermission() == android.content.pm.PackageManager.PERMISSION_GRANTED
             } catch (e: Exception) {
                 Log.e(TAG, "Error checking Shizuku permission", e)
                 false

@@ -1,9 +1,9 @@
 #!/bin/bash
 
-# Script de monitoramento automático do APK
-# Executa testes a cada 5 minutos e reporta resultados
+# Script de monitoramento automático do APK com correção automática
+# Executa testes a cada 5 minutos e corrige problemas automaticamente
 
-echo "🚀 Iniciando monitoramento automático do APK..."
+echo "🚀 Iniciando monitoramento automático do APK com correção automática..."
 
 # Função para verificar se o APK foi construído
 check_apk_build() {
@@ -46,6 +46,30 @@ check_apk_build() {
     fi
 }
 
+# Função para corrigir problemas automaticamente
+auto_fix_issues() {
+    echo "🔧 Tentando correção automática de problemas..."
+
+    # Executar script de correção automática
+    if [ -f "auto_fix_apk.sh" ]; then
+        echo "🔄 Executando correção automática..."
+        ./auto_fix_apk.sh > auto_fix_log.txt 2>&1
+        local fix_result=$?
+
+        if [ $fix_result -eq 0 ]; then
+            echo "✅ Correção automática bem-sucedida"
+            return 0
+        else
+            echo "❌ Correção automática falhou"
+            tail -10 auto_fix_log.txt
+            return 1
+        fi
+    else
+        echo "⚠️ Script de correção automática não encontrado"
+        return 1
+    fi
+}
+
 # Função para enviar notificação (placeholder)
 send_notification() {
     local status=$1
@@ -72,7 +96,19 @@ while true; do
         echo "✅ Teste concluído com sucesso - Próxima execução em 5 minutos"
     else
         send_notification "FAILURE" "Falha na construção do APK em $TIMESTAMP"
-        echo "❌ Teste falhou - Próxima execução em 5 minutos"
+        echo "🔧 Tentando correção automática..."
+
+        if auto_fix_issues; then
+            echo "✅ Correção automática aplicada - Tentando build novamente"
+            if check_apk_build; then
+                send_notification "SUCCESS" "APK construído após correção automática em $TIMESTAMP"
+                echo "✅ Build bem-sucedido após correção!"
+            else
+                echo "❌ Build ainda falhando após correção"
+            fi
+        else
+            echo "❌ Correção automática falhou - Próxima tentativa em 5 minutos"
+        fi
     fi
 
     echo "💤 Aguardando 5 minutos..."

@@ -1,7 +1,7 @@
-# Script de monitoramento automático do APK para Windows
-# Executa testes a cada 5 minutos e reporta resultados
+# Script de monitoramento automático do APK para Windows com correção automática
+# Executa testes a cada 5 minutos e corrige problemas automaticamente
 
-Write-Host "🚀 Iniciando monitoramento automático do APK..." -ForegroundColor Green
+Write-Host "🚀 Iniciando monitoramento automático do APK com correção automática..." -ForegroundColor Green
 
 # Função para verificar se o APK foi construído
 function Check-APKBuild {
@@ -50,6 +50,33 @@ function Check-APKBuild {
     }
 }
 
+# Função para corrigir problemas automaticamente
+function Auto-FixIssues {
+    Write-Host "🔧 Tentando correção automática de problemas..." -ForegroundColor Yellow
+
+    # Executar script de correção automática
+    if (Test-Path "auto_fix_apk.ps1") {
+        Write-Host "🔄 Executando correção automática..." -ForegroundColor Cyan
+        $autoFixLog = "auto_fix_log.txt"
+        & .\auto_fix_apk.ps1 2>&1 | Out-File -FilePath $autoFixLog -Encoding UTF8
+        $fixResult = $LASTEXITCODE
+
+        if ($fixResult -eq 0) {
+            Write-Host "✅ Correção automática bem-sucedida" -ForegroundColor Green
+            return $true
+        } else {
+            Write-Host "❌ Correção automática falhou" -ForegroundColor Red
+            if (Test-Path $autoFixLog) {
+                Get-Content $autoFixLog -Tail 10
+            }
+            return $false
+        }
+    } else {
+        Write-Host "⚠️ Script de correção automática não encontrado" -ForegroundColor Yellow
+        return $false
+    }
+}
+
 # Função para enviar notificação (placeholder)
 function Send-Notification {
     param(
@@ -78,7 +105,19 @@ while ($true) {
         Write-Host "✅ Teste concluído com sucesso - Próxima execução em 5 minutos" -ForegroundColor Green
     } else {
         Send-Notification "FAILURE" "Falha na construção do APK em $timestamp"
-        Write-Host "❌ Teste falhou - Próxima execução em 5 minutos" -ForegroundColor Red
+        Write-Host "🔧 Tentando correção automática..." -ForegroundColor Yellow
+
+        if (Auto-FixIssues) {
+            Write-Host "✅ Correção automática aplicada - Tentando build novamente" -ForegroundColor Green
+            if (Check-APKBuild) {
+                Send-Notification "SUCCESS" "APK construído após correção automática em $timestamp"
+                Write-Host "✅ Build bem-sucedido após correção!" -ForegroundColor Green
+            } else {
+                Write-Host "❌ Build ainda falhando após correção" -ForegroundColor Red
+            }
+        } else {
+            Write-Host "❌ Correção automática falhou - Próxima tentativa em 5 minutos" -ForegroundColor Red
+        }
     }
 
     Write-Host "💤 Aguardando 5 minutos..." -ForegroundColor Gray

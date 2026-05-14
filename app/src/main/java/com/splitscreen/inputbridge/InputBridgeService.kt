@@ -20,6 +20,8 @@ import android.view.InputDevice
 import android.view.InputEvent
 import android.view.MotionEvent
 import android.view.WindowManager
+import com.splitscreen.inputbridge.util.CoroutineManager
+import com.splitscreen.inputbridge.util.DeviceFingerprintUtil
 import kotlinx.coroutines.*
 
 /**
@@ -67,7 +69,7 @@ class InputBridgeService : Service(), InputManager.InputDeviceListener {
     private var statusCallback: ((String, String, Boolean) -> Unit)? = null
     private lateinit var sharedPrefs: SharedPreferences
 
-    private val serviceScope = CoroutineScope(Dispatchers.Default + SupervisorJob())
+    private val serviceScope = CoroutineManager.createStandardScope()
     private val injectionHandler = Handler(Looper.getMainLooper()) { msg ->
         when (msg.what) {
             MSG_INJECT_EVENT -> {
@@ -128,7 +130,7 @@ class InputBridgeService : Service(), InputManager.InputDeviceListener {
         else player2Descriptor = descriptor
 
         // Compute and persist fingerprint for reliable device identification
-        val fingerprint = computeDeviceFingerprint(descriptor)
+        val fingerprint = DeviceFingerprintUtil.computeDeviceFingerprint(descriptor)
         if (fingerprint.isNotBlank()) {
             sharedPrefs.edit()
                 .putString("player${player}_fingerprint", fingerprint)
@@ -139,46 +141,6 @@ class InputBridgeService : Service(), InputManager.InputDeviceListener {
         statusCallback?.invoke(player1Descriptor, player2Descriptor, bridgeActive)
     }
 
-    /**
-     * Computes a unique fingerprint for a device by extracting hardware identifiers
-     * from /proc/bus/input/devices via Shizuku shell. This includes:
-     * - EVIOCGUNIQ (unique ID like MAC address for Bluetooth devices)
-     * - EVIOCGPHYS (physical path)
-     * - Bus/Vendor/Product/Version (EVIOCGID)
-     */
-    private fun computeDeviceFingerprint(descriptor: String): String {
-        return try {
-            // Extract device name from descriptor (last part after |)
-            val deviceName = descriptor.split('|').lastOrNull()?.trim().orEmpty()
-
-            // Query /proc/bus/input/devices for this device
-            val deviceInfo = ShizukuUserService.execShellCommand(
-                "cat /proc/bus/input/devices | grep -A 10 'N: Name=\"${deviceName}\"'"
-            )
-
-            // Parse unique ID (EVIOCGUNIQ equivalent)
-            val uniqueId = deviceInfo.lines().find { it.startsWith("U: Uniq=") }
-                ?.substringAfter("U: Uniq=")?.trim() ?: ""
-
-            // Parse physical path (EVIOCGPHYS equivalent)
-            val physicalPath = deviceInfo.lines().find { it.startsWith("P: ") }
-                ?.substringAfter("P: ")?.trim() ?: ""
-
-            // Parse device ID components (EVIOCGID equivalent)
-            val idLine = deviceInfo.lines().find { it.startsWith("I: Bus=") }
-            val busType = idLine?.substringAfter("Bus=")?.substringBefore(" ")?.toIntOrNull() ?: 0
-            val vendorId = idLine?.substringAfter("Vendor=")?.substringBefore(" ")?.toIntOrNull() ?: 0
-            val productId = idLine?.substringAfter("Product=")?.substringBefore(" ")?.toIntOrNull() ?: 0
-            val version = idLine?.substringAfter("Version=")?.toIntOrNull() ?: 0
-
-            // Create molecular fingerprint combining all immutable identifiers
-            "${descriptor}|${uniqueId}|${physicalPath}|${busType}:${vendorId}:${productId}:${version}"
-
-        } catch (e: Exception) {
-            Log.w(TAG, "Failed to compute device fingerprint: ${e.message}")
-            descriptor // Fallback to base descriptor
-        }
-    }
 
     fun startBridge() {
         if (player1Descriptor.isEmpty() || player2Descriptor.isEmpty()) {
@@ -249,7 +211,7 @@ class InputBridgeService : Service(), InputManager.InputDeviceListener {
      * device differentiation, even for identical controllers.
      */
     private fun getEnhancedDeviceDescriptor(device: InputDevice): String {
-        return computeDeviceFingerprint(device.descriptor)
+        return DeviceFingerprintUtil.getEnhancedDeviceDescriptor(device)
     }
 
     /**
@@ -368,8 +330,16 @@ class InputBridgeService : Service(), InputManager.InputDeviceListener {
 
     private fun updateScreenDimensions() {
         val metrics = DisplayMetrics()
-        @Suppress("DEPRECATION")
-        windowManager.defaultDisplay.getRealMetrics(metrics)
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+            val windowMetrics = windowManager.currentWindowMetrics
+            val bounds = windowMetrics.bounds
+            metrics.widthPixels = bounds.width()
+            metrics.heightPixels = bounds.height()
+            metrics.density = resources.displayMetrics.density
+        } else {
+            @Suppress("DEPRECATION")
+            windowManager.defaultDisplay.getRealMetrics(metrics)
+        }
         screenWidth = metrics.widthPixels
         screenHeight = metrics.heightPixels
         screenDensity = metrics.density

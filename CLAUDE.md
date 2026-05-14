@@ -65,7 +65,30 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | `ShizukuUserService.kt` | Shizuku bridge for privileged input injection |
 | `InputBridgeAccessibilityService.kt` | Global input event interceptor |
 
-### Test Policy
+## Automated Testing and Monitoring
+
+### GitHub Actions Workflow
+- **Location**: `.github/workflows/main.yml`
+- **Schedule**: Runs every 10 minutes
+- **Actions**: Build APK, validate structure, upload artifacts
+
+### Local Monitoring Scripts
+- **Windows**: `monitor_apk.ps1` - PowerShell monitoring script
+- **Linux/macOS**: `monitor_apk.sh` - Bash monitoring script
+- **Frequency**: Every 5 minutes
+- **Features**: Build verification, APK validation, notifications
+
+### Usage
+```bash
+# Start monitoring (Windows)
+.\monitor_apk.ps1
+
+# Start monitoring (Linux/macOS)  
+chmod +x monitor_apk.sh
+./monitor_apk.sh
+```
+
+## Test Policy
 
 - No `./gradlew` or local compilation allowed per user instructions
 - CI/CD validation only via GitHub Actions (`gh run watch`)

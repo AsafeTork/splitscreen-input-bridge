@@ -66,7 +66,7 @@ class CompleteIntegrationExample {
                 try {
                     // Gera relatório de métricas
                     val report = metrics.generateMetricsJsonReport()
-                    logger.info("Metrics Update", "metrics_monitoring", mapOf<String, Any>(
+                    logger.info("Metrics Update", "metrics_monitoring", mapOf(
                         "report" to report,
                         "timestamp" to System.currentTimeMillis()
                     ))
@@ -77,7 +77,7 @@ class CompleteIntegrationExample {
                     val successRate = metrics.getInjectionSuccessRate()
 
                     if (currentFps < 30) {
-                        logger.warn("Low FPS detected", "performance_warning", mapOf<String, Any>(
+                        logger.warn("Low FPS detected", "performance_warning", mapOf(
                             "fps" to currentFps,
                             "latency_ms" to "%.2f".format(latency),
                             "success_rate" to "%.1f".format(successRate)
@@ -85,7 +85,7 @@ class CompleteIntegrationExample {
                     }
 
                     if (successRate < 90.0) {
-                        logger.warn("Low injection success rate", "performance_warning", mapOf<String, Any>(
+                        logger.warn("Low injection success rate", "performance_warning", mapOf(
                             "success_rate" to "%.1f".format(successRate),
                             "failed_injections" to metrics.getEventsDropped()
                         ))
@@ -111,7 +111,7 @@ class CompleteIntegrationExample {
 
         configManager.configState
             .onEach { configState ->
-                logger.info("Configuration Changed", "config_update", mapOf<String, Any>(
+                logger.info("Configuration Changed", "config_update", mapOf(
                     "profile" to configState.profileName,
                     "deadzone" to configState.deadzoneThreshold,
                     "smoothing" to configState.enableInputSmoothing,
@@ -149,7 +149,7 @@ class CompleteIntegrationExample {
                     if (currentProfile != null && currentProfile.name != lastProfileName) {
                         lastProfileName = currentProfile.name
 
-                        logger.info("Profile Switched", "profile_change", mapOf<String, Any>(
+                        logger.info("Profile Switched", "profile_change", mapOf(
                             "profile_name" to currentProfile.name,
                             "player1_device" to currentProfile.player1Descriptor,
                             "player2_device" to currentProfile.player2Descriptor,
@@ -182,13 +182,13 @@ class CompleteIntegrationExample {
         for ((key, value) in profile.configPreferences) {
             try {
                 when (key) {
-                    "deadzone_threshold" -> configManager.updateConfig("deadzone_threshold" to (value as? Number)?.toFloat() ?: 0.15f)
-                    "enable_input_smoothing" -> configManager.updateConfig("enable_input_smoothing" to (value as? Boolean) ?: true)
-                    "enable_prediction" -> configManager.updateConfig("enable_prediction" to (value as? Boolean) ?: true)
+                    "deadzone_threshold" -> configManager.updateConfig("deadzone_threshold" to ((value as? Number)?.toFloat() ?: 0.15f))
+                    "enable_input_smoothing" -> configManager.updateConfig("enable_input_smoothing" to ((value as? Boolean) ?: true))
+                    "enable_prediction" -> configManager.updateConfig("enable_prediction" to ((value as? Boolean) ?: true))
                     // Adicione mais configurações conforme necessário
                 }
             } catch (e: Exception) {
-                logger.error("Failed to apply profile setting", "profile_error", mapOf<String, Any>(
+                logger.error("Failed to apply profile setting", "profile_error", mapOf(
                     "key" to key,
                     "value" to value.toString(),
                     "profile" to profile.name
@@ -196,7 +196,7 @@ class CompleteIntegrationExample {
             }
         }
 
-        logger.info("Profile settings applied", "profile_config", mapOf<String, Any>(
+        logger.info("Profile settings applied", "profile_config", mapOf(
             "profile" to profile.name,
             "settings_count" to profile.configPreferences.size
         ))
@@ -213,7 +213,7 @@ class CompleteIntegrationExample {
 
         // 1. Obtém configuração atual
         val currentConfig = configManager.configState.value
-        logger.info("Current Configuration", "config_demo", mapOf<String, Any>(
+        logger.info("Current Configuration", "config_demo", mapOf(
             "profile" to currentConfig.profileName,
             "deadzone" to currentConfig.deadzoneThreshold,
             "smoothing" to currentConfig.enableInputSmoothing,
@@ -265,20 +265,20 @@ class CompleteIntegrationExample {
         profileManager.createProfile("rpg_game")
 
         // 2. Configura perfis com parâmetros específicos
-        profileManager.updateProfileConfig("racing_game", mapOf<String, Any>(
+        profileManager.updateProfileConfig("racing_game", mapOf(
             "deadzone_threshold" to 0.1f,
             "enable_input_smoothing" to true,
             "enable_prediction" to true,
             "prediction_factor" to 0.03f
         ))
 
-        profileManager.updateProfileConfig("fps_game", mapOf<String, Any>(
+        profileManager.updateProfileConfig("fps_game", mapOf(
             "deadzone_threshold" to 0.2f,
             "enable_input_smoothing" to false,
             "enable_prediction" to false
         ))
 
-        profileManager.updateProfileConfig("rpg_game", mapOf<String, Any>(
+        profileManager.updateProfileConfig("rpg_game", mapOf(
             "deadzone_threshold" to 0.15f,
             "enable_input_smoothing" to true,
             "enable_prediction" to true,
@@ -298,7 +298,7 @@ class CompleteIntegrationExample {
 
         // 4. Lista todos os perfis disponíveis
         val availableProfiles = profileManager.getAllProfiles()
-        logger.info("Available Profiles", "profile_list", mapOf<String, Any>(
+        logger.info("Available Profiles", "profile_list", mapOf(
             "count" to (availableProfiles?.size ?: 0),
             "profiles" to (availableProfiles?.joinToString(", ") { it.name } ?: "none")
         ))
@@ -308,7 +308,7 @@ class CompleteIntegrationExample {
         monitoringScope.launch {
             try {
                 val jsonExport = profileManager.exportProfilesToJson()
-                logger.info("Profiles Exported", "profile_export", mapOf<String, Any>(
+                logger.info("Profiles Exported", "profile_export", mapOf(
                     "size" to jsonExport.length,
                     "timestamp" to System.currentTimeMillis()
                 ))
@@ -320,7 +320,7 @@ class CompleteIntegrationExample {
                 val importedJson = loadProfilesFromFile()
                 if (importedJson != null) {
                     profileManager.importProfilesFromJson(importedJson)
-                    logger.info("Profiles Imported", "profile_import", mapOf<String, Any>(
+                    logger.info("Profiles Imported", "profile_import", mapOf(
                         "success" to true
                     ))
                 }
@@ -341,7 +341,7 @@ class CompleteIntegrationExample {
         println("\n=== Demonstrando Logging Avançado ===")
 
         // 1. Log de inicialização
-        logger.info("Service Initialization", "service_lifecycle", mapOf<String, Any>(
+        logger.info("Service Initialization", "service_lifecycle", mapOf(
             "version" to "2.1.0",
             "build_type" to "debug",
             "timestamp" to System.currentTimeMillis(),
@@ -349,7 +349,7 @@ class CompleteIntegrationExample {
         ))
 
         // 2. Log de evento de dispositivo
-        logger.debug("Input Device Connected", "device_event", mapOf<String, Any>(
+        logger.debug("Input Device Connected", "device_event", mapOf(
             "device_id" to 1,
             "device_name" to "Xbox Wireless Controller",
             "vendor_id" to 1118,
@@ -363,7 +363,7 @@ class CompleteIntegrationExample {
             axisY = -0.32f,
             touchX = 1280.5f,
             touchY = 1560.2f,
-            context = mapOf<String, Any>(
+            context = mapOf(
                 "device_id" to 2,
                 "action" to "move",
                 "frame_number" to 12345
@@ -375,7 +375,7 @@ class CompleteIntegrationExample {
             success = true,
             deviceDescriptor = "xbox_controller_2",
             latencyMs = 2.87,
-            context = mapOf<String, Any>(
+            context = mapOf(
                 "injection_type" to "touch",
                 "target_x" to 1280,
                 "target_y" to 1560
@@ -383,7 +383,7 @@ class CompleteIntegrationExample {
         )
 
         // 5. Log de evento de performance
-        logger.logPerformanceEvent("frame_processing", mapOf<String, Any>(
+        logger.logPerformanceEvent("frame_processing", mapOf(
             "frame_time_ms" to 16.7,
             "gpu_time_ms" to 8.3,
             "cpu_time_ms" to 5.2,
@@ -397,7 +397,7 @@ class CompleteIntegrationExample {
             logger.logCriticalEvent(
                 eventType = "critical_failure",
                 message = "Critical operation failed",
-                context = mapOf<String, Any>(
+                context = mapOf(
                     "operation" to "shizuku_connection",
                     "attempt" to 3,
                     "retryable" to true,
@@ -426,7 +426,7 @@ class CompleteIntegrationExample {
         val eventsProcessed = metrics.getEventsProcessed()
         val eventsDropped = metrics.getEventsDropped()
 
-        logger.info("Real-time Performance Metrics", "performance_monitor", mapOf<String, Any>(
+        logger.info("Real-time Performance Metrics", "performance_monitor", mapOf(
             "fps" to currentFps,
             "avg_latency_ms" to "%.2f".format(avgLatency),
             "success_rate" to "%.1f".format(successRate),
@@ -437,12 +437,12 @@ class CompleteIntegrationExample {
 
         // 2. Gera relatório completo
         val textReport = metrics.generateMetricsReport()
-        logger.debug("Metrics Text Report", "performance_report", mapOf<String, Any>(
+        logger.debug("Metrics Text Report", "performance_report", mapOf(
             "report" to textReport.replace("\n", " | ")
         ))
 
         val jsonReport = metrics.generateMetricsJsonReport()
-        logger.debug("Metrics JSON Report", "performance_report", mapOf<String, Any>(
+        logger.debug("Metrics JSON Report", "performance_report", mapOf(
             "report_length" to jsonReport.length
         ))
 
@@ -452,7 +452,7 @@ class CompleteIntegrationExample {
         val latency99th = metrics.getLatency99thPercentileMs()
         val avgJitter = metrics.getAverageJitterMs()
 
-        logger.info("Advanced Performance Analysis", "performance_analysis", mapOf<String, Any>(
+        logger.info("Advanced Performance Analysis", "performance_analysis", mapOf(
             "latency_stddev_ms" to "%.2f".format(latencyStdDev),
             "latency_95th_ms" to "%.2f".format(latency95th),
             "latency_99th_ms" to "%.2f".format(latency99th),
@@ -463,7 +463,7 @@ class CompleteIntegrationExample {
 
         // 4. Verifica condições de performance
         if (currentFps < 45) {
-            logger.warn("Performance Warning: Low FPS", "performance_alert", mapOf<String, Any>(
+            logger.warn("Performance Warning: Low FPS", "performance_alert", mapOf(
                 "current_fps" to currentFps,
                 "threshold" to 45,
                 "recommended_action" to "reduce_prediction_factor"
@@ -471,7 +471,7 @@ class CompleteIntegrationExample {
         }
 
         if (successRate < 95.0) {
-            logger.warn("Performance Warning: Low Success Rate", "performance_alert", mapOf<String, Any>(
+            logger.warn("Performance Warning: Low Success Rate", "performance_alert", mapOf(
                 "current_rate" to "%.1f".format(successRate),
                 "threshold" to 95.0,
                 "recommended_action" to "check_shizuku_connection"
@@ -479,7 +479,7 @@ class CompleteIntegrationExample {
         }
 
         if (avgLatency > 10.0) {
-            logger.warn("Performance Warning: High Latency", "performance_alert", mapOf<String, Any>(
+            logger.warn("Performance Warning: High Latency", "performance_alert", mapOf(
                 "current_latency_ms" to "%.2f".format(avgLatency),
                 "threshold_ms" to 10.0,
                 "recommended_action" to "optimize_processing_pipeline"
@@ -525,7 +525,7 @@ class CompleteIntegrationExample {
         configManager.updateConfig("enable_input_smoothing" to true)
 
         // 3. Simula eventos de jogo
-        logger.info("Game started", "game_event", mapOf<String, Any>(
+        logger.info("Game started", "game_event", mapOf(
             "game_type" to "racing",
             "track" to "monza",
             "players" to 2,
@@ -543,7 +543,7 @@ class CompleteIntegrationExample {
             val touchX = ((axisX + 1.0f) / 2.0f) * 1920
             val touchY = 1080f + ((axisY + 1.0f) / 2.0f) * 540
 
-            logger.logTransformationEvent(axisX, axisY, touchX, touchY, mapOf<String, Any>(
+            logger.logTransformationEvent(axisX, axisY, touchX, touchY, mapOf(
                 "frame" to frame,
                 "game_time_ms" to frame * 16
             ))
@@ -568,7 +568,7 @@ class CompleteIntegrationExample {
 
             // Loga métricas periodicamente
             if (frame % 30 == 0) {
-                logger.logPerformanceEvent("game_frame_batch", mapOf<String, Any>(
+                logger.logPerformanceEvent("game_frame_batch", mapOf(
                     "batch_frames" to 30,
                     "current_fps" to metrics.getCurrentFps(),
                     "avg_latency_ms" to "%.2f".format(metrics.getAverageProcessingLatencyMs())
@@ -580,7 +580,7 @@ class CompleteIntegrationExample {
         }
 
         // 4. Finaliza o jogo
-        logger.info("Game completed", "game_event", mapOf<String, Any>(
+        logger.info("Game completed", "game_event", mapOf(
             "duration_seconds" to 100 * 0.016,
             "final_fps" to metrics.getCurrentFps(),
             "avg_latency_ms" to "%.2f".format(metrics.getAverageProcessingLatencyMs()),
@@ -589,7 +589,7 @@ class CompleteIntegrationExample {
 
         // 5. Gera relatório final
         val finalReport = metrics.generateMetricsReport()
-        logger.info("Final Game Report", "game_report", mapOf<String, Any>(
+        logger.info("Final Game Report", "game_report", mapOf(
             "report" to finalReport.replace("\n", " | ")
         ))
 
@@ -619,7 +619,7 @@ class CompleteIntegrationExample {
             logger.logCriticalEvent(
                 eventType = "shizuku_failure",
                 message = "Shizuku connection lost",
-                context = mapOf<String, Any>(
+                context = mapOf(
                     "attempt" to 1,
                     "recovery_attempted" to true,
                     "fallback_enabled" to true
@@ -666,7 +666,7 @@ class CompleteIntegrationExample {
         val initialLatency = metrics.getAverageProcessingLatencyMs()
         val initialSuccessRate = metrics.getInjectionSuccessRate()
 
-        logger.info("Initial Performance Metrics", "optimization_start", mapOf<String, Any>(
+        logger.info("Initial Performance Metrics", "optimization_start", mapOf(
             "fps" to initialFps,
             "latency_ms" to "%.2f".format(initialLatency),
             "success_rate" to "%.1f".format(initialSuccessRate)
@@ -693,7 +693,7 @@ class CompleteIntegrationExample {
         val optimizedLatency = (initialLatency * 0.8).coerceAtLeast(1.0) // 20% melhor
         val optimizedSuccessRate = (initialSuccessRate + 5).coerceAtMost(100.0) // 5% melhor
 
-        logger.info("Optimized Performance Metrics", "optimization_result", mapOf<String, Any>(
+        logger.info("Optimized Performance Metrics", "optimization_result", mapOf(
             "fps" to optimizedFps,
             "latency_ms" to "%.2f".format(optimizedLatency),
             "success_rate" to "%.1f".format(optimizedSuccessRate),

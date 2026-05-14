@@ -46,8 +46,8 @@ class AdvancedUsageExample {
             "system_cpu" to "%.1f".format(systemCpu),
             "memory_mb" to "%.1f".format(memoryUsage),
             "battery_level" to "%.0f".format(batteryLevel),
-            "battery_temp" to systemMetrics?.batteryTemperature?.toString() ?: "N/A",
-            "storage_available_mb" to systemMetrics?.availableStorageMb?.toString() ?: "N/A"
+            "battery_temp" to (systemMetrics?.batteryTemperature?.toString() ?: "N/A") as Any,
+            "storage_available_mb" to (systemMetrics?.availableStorageMb?.toString() ?: "N/A") as Any
         ))
 
         // Gera relatório completo
@@ -262,8 +262,8 @@ class AdvancedUsageExample {
                     "fps" to currentFps,
                     "latency_ms" to "%.2f".format(avgLatency),
                     "success_rate" to "%.1f".format(successRate),
-                    "battery_level" to systemMetrics?.batteryLevel,
-                    "cpu_usage" to systemMetrics?.cpuUsage
+                    "battery_level" to (systemMetrics?.batteryLevel ?: 0),
+                    "cpu_usage" to (systemMetrics?.cpuUsage ?: 0f)
                 ))
 
                 // Ajusta configurações automaticamente com base na performance
@@ -280,7 +280,7 @@ class AdvancedUsageExample {
                                 ))
                             }
                         }
-                        performanceScore > 80 && systemMetrics?.batteryLevel ?: 100 > 50 -> {
+                        performanceScore > 80 && (systemMetrics?.batteryLevel ?: 100) > 50 -> {
                             // Performance alta e bateria suficiente - ativa modo de performance
                             if (!currentConfig.performanceMode) {
                                 configManager.updateConfig("performance_mode" to true)
@@ -345,13 +345,13 @@ class AdvancedUsageExample {
 
             // Informações do sistema
             appendLine("--- System Information ---")
-            appendLine("CPU Usage: ${systemMetrics?.cpuUsage?.roundToInt()}%")
-            appendLine("Memory Usage: ${systemMetrics?.memoryUsageMb?.roundToInt()} MB")
-            appendLine("Battery Level: ${systemMetrics?.batteryLevel}%")
-            appendLine("Battery Temperature: ${systemMetrics?.batteryTemperature}°C")
-            appendLine("Storage Available: ${systemMetrics?.availableStorageMb?.toFloat()} MB")
-            appendLine("Process CPU: ${systemMetrics?.processCpuUsage?.roundToInt()}%")
-            appendLine("Charging: ${systemMetrics?.isCharging}")
+            appendLine("CPU Usage: ${systemMetrics?.cpuUsage?.roundToInt() ?: 0}%")
+            appendLine("Memory Usage: ${systemMetrics?.memoryUsageMb?.roundToInt() ?: 0} MB")
+            appendLine("Battery Level: ${systemMetrics?.batteryLevel ?: 0}%")
+            appendLine("Battery Temperature: ${systemMetrics?.batteryTemperature?.toString() ?: "N/A"}°C")
+            appendLine("Storage Available: ${systemMetrics?.availableStorageMb?.toFloat() ?: 0f} MB")
+            appendLine("Process CPU: ${systemMetrics?.processCpuUsage?.roundToInt() ?: 0}%")
+            appendLine("Charging: ${systemMetrics?.isCharging ?: false}")
             appendLine()
 
             // Performance

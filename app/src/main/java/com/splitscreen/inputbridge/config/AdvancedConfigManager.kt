@@ -450,7 +450,7 @@ class AdvancedConfigManager(private val context: Context, private val logger: En
     /**
      * Obtém a lista de todos os perfis disponíveis
      */
-    fun getAvailableProfiles(): List<String> = withContext(Dispatchers.IO) {
+    fun getAvailableProfiles(): List<String> {
         val profiles = mutableListOf<String>()
         profiles.add(DEFAULT_PROFILE) // Sempre inclui o perfil padrão
 
@@ -462,7 +462,7 @@ class AdvancedConfigManager(private val context: Context, private val logger: En
             }
         }
 
-        profiles.sorted()
+        return profiles.sorted()
     }
 
     /**

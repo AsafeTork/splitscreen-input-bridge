@@ -356,13 +356,15 @@ class StructuredLogger(
      */
     fun logInjectionEvent(success: Boolean, deviceDescriptor: String, latencyMs: Double, context: Map<String, Any>? = null) {
         val eventType = if (success) "injection_success" else "injection_failure"
-        val logContext = mutableMapOf(
+        val logContext = mutableMapOf<String, Any>(
             "device" to deviceDescriptor,
             "latency_ms" to "%.2f".format(latencyMs),
             "success" to success.toString()
         )
         if (context != null) {
-            logContext.putAll(context)
+            context.forEach { (key, value) ->
+                logContext[key] = value
+            }
         }
 
         if (success) {
@@ -376,14 +378,16 @@ class StructuredLogger(
      * Loga um evento de transformação de entrada
      */
     fun logTransformationEvent(axisX: Float, axisY: Float, touchX: Float, touchY: Float, context: Map<String, Any>? = null) {
-        val logContext = mutableMapOf(
+        val logContext = mutableMapOf<String, Any>(
             "axis_x" to "%.3f".format(axisX),
             "axis_y" to "%.3f".format(axisY),
             "touch_x" to "%.1f".format(touchX),
             "touch_y" to "%.1f".format(touchY)
         )
         if (context != null) {
-            logContext.putAll(context)
+            context.forEach { (key, value) ->
+                logContext[key] = value
+            }
         }
 
         debug("Input transformation", "transformation", logContext)
@@ -393,14 +397,16 @@ class StructuredLogger(
      * Loga um evento de performance
      */
     fun logPerformanceEvent(eventType: String, metricsData: Map<String, Any>) {
-        val logContext = mutableMapOf(
+        val logContext = mutableMapOf<String, Any>(
             "fps" to metrics.getCurrentFps(),
             "latency_ms" to "%.2f".format(metrics.getAverageProcessingLatencyMs()),
             "success_rate" to "%.1f".format(metrics.getInjectionSuccessRate()),
             "latency_95th_percentile_ms" to "%.2f".format(metrics.getLatency95thPercentileMs()),
             "latency_99th_percentile_ms" to "%.2f".format(metrics.getLatency99thPercentileMs())
         )
-        logContext.putAll(metricsData)
+        metricsData.forEach { (key, value) ->
+            logContext[key] = value
+        }
 
         info("Performance update", eventType, logContext)
     }
@@ -409,14 +415,16 @@ class StructuredLogger(
      * Loga um evento crítico com nível de severidade alto
      */
     fun logCriticalEvent(eventType: String, message: String, context: Map<String, Any>, throwable: Throwable? = null) {
-        val enhancedContext = mutableMapOf(
+        val enhancedContext = mutableMapOf<String, Any>(
             "fps" to metrics.getCurrentFps(),
             "latency_ms" to "%.2f".format(metrics.getAverageProcessingLatencyMs()),
             "success_rate" to "%.1f".format(metrics.getInjectionSuccessRate()),
             "events_processed" to metrics.getEventsProcessed(),
             "injection_success_rate" to "%.1f".format(metrics.getInjectionSuccessRate())
         )
-        enhancedContext.putAll(context)
+        context.forEach { (key, value) ->
+            enhancedContext[key] = value
+        }
 
         error(message, eventType, enhancedContext, throwable)
     }
@@ -425,12 +433,14 @@ class StructuredLogger(
      * Loga um evento de configuração
      */
     fun logConfigEvent(eventType: String, configData: Map<String, Any>, success: Boolean = true) {
-        val logContext = mutableMapOf(
+        val logContext = mutableMapOf<String, Any>(
             "success" to success.toString(),
             "fps" to metrics.getCurrentFps(),
             "latency_ms" to "%.2f".format(metrics.getAverageProcessingLatencyMs())
         )
-        logContext.putAll(configData)
+        configData.forEach { (key, value) ->
+            logContext[key] = value
+        }
 
         if (success) {
             info("Configuration event", eventType, logContext)
@@ -443,12 +453,14 @@ class StructuredLogger(
      * Loga um evento de ciclo de vida do serviço
      */
     fun logLifecycleEvent(eventType: String, lifecycleData: Map<String, Any>) {
-        val logContext = mutableMapOf(
+        val logContext = mutableMapOf<String, Any>(
             "fps" to metrics.getCurrentFps(),
             "latency_ms" to "%.2f".format(metrics.getAverageProcessingLatencyMs()),
             "success_rate" to "%.1f".format(metrics.getInjectionSuccessRate())
         )
-        logContext.putAll(lifecycleData)
+        lifecycleData.forEach { (key, value) ->
+            logContext[key] = value
+        }
 
         info("Service lifecycle event", eventType, logContext)
     }

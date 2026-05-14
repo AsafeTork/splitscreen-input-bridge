@@ -104,10 +104,10 @@ class SystemMetricsCollector(private val context: Context) {
             if (statTokens.size < 14) return 0f
 
             // utime (14) + stime (15) + cutime (16) + cstime (17)
-            val processCpuTime = statTokens[13].toLongOrNull() ?: 0 +
-                                statTokens[14].toLongOrNull() ?: 0 +
-                                statTokens[15].toLongOrNull() ?: 0 +
-                                statTokens[16].toLongOrNull() ?: 0
+            val processCpuTime = (statTokens[13].toLongOrNull() ?: 0) +
+                                (statTokens[14].toLongOrNull() ?: 0) +
+                                (statTokens[15].toLongOrNull() ?: 0) +
+                                (statTokens[16].toLongOrNull() ?: 0)
 
             // Obtém o tempo total de CPU do sistema
             val cpuReader = BufferedReader(FileReader(CPU_STAT_PATH))

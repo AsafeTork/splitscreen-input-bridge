@@ -73,8 +73,8 @@ class ControllerRegistry(private val context: Context) : InputManager.InputDevic
                 .map { device ->
                     ControllerInfo(
                         id = device.id,
-                        name = device.name,
-                        descriptor = device.descriptor,
+                        name = device.name ?: "Unknown Device",
+                        descriptor = device.descriptor ?: "",
                         isConnected = true
                     )
                 }
@@ -146,12 +146,12 @@ class ControllerRegistry(private val context: Context) : InputManager.InputDevic
     // InputManager.InputDeviceListener callbacks
     override fun onInputDeviceAdded(deviceId: Int) {
         val device = InputDevice.getDevice(deviceId)
-        if (isGamepadDevice(device)) {
+        if (device != null && isGamepadDevice(device)) {
             registryScope.launch {
                 val controller = ControllerInfo(
                     id = device.id,
-                    name = device.name,
-                    descriptor = device.descriptor,
+                    name = device.name ?: "Unknown Device",
+                    descriptor = device.descriptor ?: "",
                     isConnected = true
                 )
 
@@ -162,33 +162,36 @@ class ControllerRegistry(private val context: Context) : InputManager.InputDevic
                     availableControllers = currentControllers
                 )
 
-                Log.d(TAG, "Gamepad added: ${device.name} (id=$deviceId)")
+                Log.d(TAG, "Gamepad added: ${device.name ?: "Unknown Device"} (id=$deviceId)")
             }
         }
     }
 
     override fun onInputDeviceRemoved(deviceId: Int) {
         val device = InputDevice.getDevice(deviceId)
-        if (isGamepadDevice(device)) {
+        if (device != null && isGamepadDevice(device)) {
             registryScope.launch {
                 val currentControllers = _controllersState.value.availableControllers.toMutableList()
-                val removedCount = currentControllers.removeAll { it.id == deviceId }
+                val initialSize = currentControllers.size
+                currentControllers.removeAll { it.id == deviceId }
+                val finalSize = currentControllers.size
 
-                if (removedCount > 0) {
+                if (initialSize > finalSize) {
                     _controllersState.value = _controllersState.value.copy(
                         availableControllers = currentControllers
                     )
 
                     // Clear assignments if the removed device was assigned
                     val state = _controllersState.value
-                    if (state.player1Descriptor == device.descriptor) {
+                    val deviceDescriptor = device.descriptor ?: ""
+                    if (state.player1Descriptor == deviceDescriptor) {
                         clearAssignment(1)
                     }
-                    if (state.player2Descriptor == device.descriptor) {
+                    if (state.player2Descriptor == deviceDescriptor) {
                         clearAssignment(2)
                     }
 
-                    Log.d(TAG, "Gamepad removed: ${device.name} (id=$deviceId)")
+                    Log.d(TAG, "Gamepad removed: ${device.name ?: "Unknown Device"} (id=$deviceId)")
                 }
             }
         }

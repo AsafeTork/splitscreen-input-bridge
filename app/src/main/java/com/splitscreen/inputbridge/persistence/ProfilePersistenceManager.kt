@@ -17,7 +17,7 @@ import java.util.concurrent.atomic.AtomicLong
  * Gerencia o armazenamento e recuperação de configurações de perfil,
  * mapeamento de dispositivos e preferências específicas de perfil
  */
-class ProfilePersistenceManager(private val context: Context, private val logger: StructuredLogger) {
+class ProfilePersistenceManager(private val context: Context, private val logger: com.splitscreen.inputbridge.logging.EnhancedStructuredLogger) {
 
     companion object {
         private const val PREFS_NAME = "InputBridgeProfiles"

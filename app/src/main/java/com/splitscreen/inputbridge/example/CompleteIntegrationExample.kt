@@ -1,9 +1,9 @@
 package com.splitscreen.inputbridge.example
 
 import android.content.Context
-import com.splitscreen.inputbridge.InputBridgeService
-import com.splitscreen.inputbridge.config.DynamicConfigManager
-import com.splitscreen.inputbridge.logging.StructuredLogger
+import com.splitscreen.inputbridge.InputBridgeServiceEnhanced
+import com.splitscreen.inputbridge.config.AdvancedConfigManager
+import com.splitscreen.inputbridge.logging.EnhancedStructuredLogger
 import com.splitscreen.inputbridge.metrics.PerformanceMetrics
 import com.splitscreen.inputbridge.persistence.ProfilePersistenceManager
 import kotlinx.coroutines.CoroutineScope
@@ -11,6 +11,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
+import kotlin.math.roundToInt
 
 /**
  * Exemplo completo de integração demonstrando todas as funcionalidades:
@@ -24,7 +25,7 @@ class CompleteIntegrationExample {
     /**
      * Demonstração completa de todas as funcionalidades integradas
      */
-    fun demonstrateCompleteIntegration(service: InputBridgeService, context: Context) {
+    fun demonstrateCompleteIntegration(service: InputBridgeServiceEnhanced, context: Context) {
         println("=== Iniciando Demonstração Completa ===")
 
         // 1. Configurar observadores de métricas
@@ -54,7 +55,7 @@ class CompleteIntegrationExample {
     /**
      * Configura monitoramento contínuo de métricas
      */
-    private fun setupMetricsMonitoring(service: InputBridgeService) {
+    private fun setupMetricsMonitoring(service: InputBridgeServiceEnhanced) {
         val metrics = service.getPerformanceMetrics()
         val logger = service.getStructuredLogger()
 
@@ -65,7 +66,7 @@ class CompleteIntegrationExample {
                 try {
                     // Gera relatório de métricas
                     val report = metrics.generateMetricsJsonReport()
-                    logger.info("Metrics Update", "metrics_monitoring", mapOf(
+                    logger.info("Metrics Update", "metrics_monitoring", mapOf<String, Any>(
                         "report" to report,
                         "timestamp" to System.currentTimeMillis()
                     ))
@@ -76,7 +77,7 @@ class CompleteIntegrationExample {
                     val successRate = metrics.getInjectionSuccessRate()
 
                     if (currentFps < 30) {
-                        logger.warn("Low FPS detected", "performance_warning", mapOf(
+                        logger.warn("Low FPS detected", "performance_warning", mapOf<String, Any>(
                             "fps" to currentFps,
                             "latency_ms" to "%.2f".format(latency),
                             "success_rate" to "%.1f".format(successRate)
@@ -84,7 +85,7 @@ class CompleteIntegrationExample {
                     }
 
                     if (successRate < 90.0) {
-                        logger.warn("Low injection success rate", "performance_warning", mapOf(
+                        logger.warn("Low injection success rate", "performance_warning", mapOf<String, Any>(
                             "success_rate" to "%.1f".format(successRate),
                             "failed_injections" to metrics.getEventsDropped()
                         ))
@@ -104,13 +105,13 @@ class CompleteIntegrationExample {
     /**
      * Configura monitoramento de mudanças de configuração
      */
-    private fun setupConfigMonitoring(service: InputBridgeService) {
+    private fun setupConfigMonitoring(service: InputBridgeServiceEnhanced) {
         val configManager = service.getConfigManager()
         val logger = service.getStructuredLogger()
 
         configManager.configState
             .onEach { configState ->
-                logger.info("Configuration Changed", "config_update", mapOf(
+                logger.info("Configuration Changed", "config_update", mapOf<String, Any>(
                     "profile" to configState.profileName,
                     "deadzone" to configState.deadzoneThreshold,
                     "smoothing" to configState.enableInputSmoothing,
@@ -132,7 +133,7 @@ class CompleteIntegrationExample {
     /**
      * Configura monitoramento de mudanças de perfis
      */
-    private fun setupProfileMonitoring(service: InputBridgeService) {
+    private fun setupProfileMonitoring(service: InputBridgeServiceEnhanced) {
         val profileManager = service.getProfileManager()
         val logger = service.getStructuredLogger()
 
@@ -148,7 +149,7 @@ class CompleteIntegrationExample {
                     if (currentProfile != null && currentProfile.name != lastProfileName) {
                         lastProfileName = currentProfile.name
 
-                        logger.info("Profile Switched", "profile_change", mapOf(
+                        logger.info("Profile Switched", "profile_change", mapOf<String, Any>(
                             "profile_name" to currentProfile.name,
                             "player1_device" to currentProfile.player1Descriptor,
                             "player2_device" to currentProfile.player2Descriptor,
@@ -173,7 +174,7 @@ class CompleteIntegrationExample {
     /**
      * Aplica configurações específicas do perfil
      */
-    private fun applyProfileSpecificSettings(service: InputBridgeService, profile: ProfilePersistenceManager.UserProfile) {
+    private fun applyProfileSpecificSettings(service: InputBridgeServiceEnhanced, profile: ProfilePersistenceManager.UserProfile) {
         val configManager = service.getConfigManager()
         val logger = service.getStructuredLogger()
 
@@ -187,7 +188,7 @@ class CompleteIntegrationExample {
                     // Adicione mais configurações conforme necessário
                 }
             } catch (e: Exception) {
-                logger.error("Failed to apply profile setting", "profile_error", mapOf(
+                logger.error("Failed to apply profile setting", "profile_error", mapOf<String, Any>(
                     "key" to key,
                     "value" to value.toString(),
                     "profile" to profile.name
@@ -195,7 +196,7 @@ class CompleteIntegrationExample {
             }
         }
 
-        logger.info("Profile settings applied", "profile_config", mapOf(
+        logger.info("Profile settings applied", "profile_config", mapOf<String, Any>(
             "profile" to profile.name,
             "settings_count" to profile.configPreferences.size
         ))
@@ -204,7 +205,7 @@ class CompleteIntegrationExample {
     /**
      * Demonstra configuração dinâmica em tempo real
      */
-    private fun demonstrateDynamicConfiguration(service: InputBridgeService) {
+    private fun demonstrateDynamicConfiguration(service: InputBridgeServiceEnhanced) {
         val configManager = service.getConfigManager()
         val logger = service.getStructuredLogger()
 
@@ -212,7 +213,7 @@ class CompleteIntegrationExample {
 
         // 1. Obtém configuração atual
         val currentConfig = configManager.configState.value
-        logger.info("Current Configuration", "config_demo", mapOf(
+        logger.info("Current Configuration", "config_demo", mapOf<String, Any>(
             "profile" to currentConfig.profileName,
             "deadzone" to currentConfig.deadzoneThreshold,
             "smoothing" to currentConfig.enableInputSmoothing,
@@ -251,7 +252,7 @@ class CompleteIntegrationExample {
     /**
      * Demonstra gerenciamento avançado de perfis
      */
-    private fun demonstrateProfileManagement(service: InputBridgeService) {
+    private fun demonstrateProfileManagement(service: InputBridgeServiceEnhanced) {
         val profileManager = service.getProfileManager()
         val logger = service.getStructuredLogger()
 
@@ -264,20 +265,20 @@ class CompleteIntegrationExample {
         profileManager.createProfile("rpg_game")
 
         // 2. Configura perfis com parâmetros específicos
-        profileManager.updateProfileConfig("racing_game", mapOf(
+        profileManager.updateProfileConfig("racing_game", mapOf<String, Any>(
             "deadzone_threshold" to 0.1f,
             "enable_input_smoothing" to true,
             "enable_prediction" to true,
             "prediction_factor" to 0.03f
         ))
 
-        profileManager.updateProfileConfig("fps_game", mapOf(
+        profileManager.updateProfileConfig("fps_game", mapOf<String, Any>(
             "deadzone_threshold" to 0.2f,
             "enable_input_smoothing" to false,
             "enable_prediction" to false
         ))
 
-        profileManager.updateProfileConfig("rpg_game", mapOf(
+        profileManager.updateProfileConfig("rpg_game", mapOf<String, Any>(
             "deadzone_threshold" to 0.15f,
             "enable_input_smoothing" to true,
             "enable_prediction" to true,
@@ -297,9 +298,9 @@ class CompleteIntegrationExample {
 
         // 4. Lista todos os perfis disponíveis
         val availableProfiles = profileManager.getAllProfiles()
-        logger.info("Available Profiles", "profile_list", mapOf(
+        logger.info("Available Profiles", "profile_list", mapOf<String, Any>(
             "count" to (availableProfiles?.size ?: 0),
-            "profiles" to availableProfiles?.joinToString(", ") { it.name } ?: "none"
+            "profiles" to (availableProfiles?.joinToString(", ") { it.name } ?: "none")
         ))
 
         // 5. Exporta perfis para JSON
@@ -307,7 +308,7 @@ class CompleteIntegrationExample {
         monitoringScope.launch {
             try {
                 val jsonExport = profileManager.exportProfilesToJson()
-                logger.info("Profiles Exported", "profile_export", mapOf(
+                logger.info("Profiles Exported", "profile_export", mapOf<String, Any>(
                     "size" to jsonExport.length,
                     "timestamp" to System.currentTimeMillis()
                 ))
@@ -319,7 +320,7 @@ class CompleteIntegrationExample {
                 val importedJson = loadProfilesFromFile()
                 if (importedJson != null) {
                     profileManager.importProfilesFromJson(importedJson)
-                    logger.info("Profiles Imported", "profile_import", mapOf(
+                    logger.info("Profiles Imported", "profile_import", mapOf<String, Any>(
                         "success" to true
                     ))
                 }
@@ -334,13 +335,13 @@ class CompleteIntegrationExample {
     /**
      * Demonstra logging estruturado avançado
      */
-    private fun demonstrateAdvancedLogging(service: InputBridgeService) {
+    private fun demonstrateAdvancedLogging(service: InputBridgeServiceEnhanced) {
         val logger = service.getStructuredLogger()
 
         println("\n=== Demonstrando Logging Avançado ===")
 
         // 1. Log de inicialização
-        logger.info("Service Initialization", "service_lifecycle", mapOf(
+        logger.info("Service Initialization", "service_lifecycle", mapOf<String, Any>(
             "version" to "2.1.0",
             "build_type" to "debug",
             "timestamp" to System.currentTimeMillis(),
@@ -348,7 +349,7 @@ class CompleteIntegrationExample {
         ))
 
         // 2. Log de evento de dispositivo
-        logger.debug("Input Device Connected", "device_event", mapOf(
+        logger.debug("Input Device Connected", "device_event", mapOf<String, Any>(
             "device_id" to 1,
             "device_name" to "Xbox Wireless Controller",
             "vendor_id" to 1118,
@@ -362,7 +363,7 @@ class CompleteIntegrationExample {
             axisY = -0.32f,
             touchX = 1280.5f,
             touchY = 1560.2f,
-            context = mapOf(
+            context = mapOf<String, Any>(
                 "device_id" to 2,
                 "action" to "move",
                 "frame_number" to 12345
@@ -374,7 +375,7 @@ class CompleteIntegrationExample {
             success = true,
             deviceDescriptor = "xbox_controller_2",
             latencyMs = 2.87,
-            context = mapOf(
+            context = mapOf<String, Any>(
                 "injection_type" to "touch",
                 "target_x" to 1280,
                 "target_y" to 1560
@@ -382,7 +383,7 @@ class CompleteIntegrationExample {
         )
 
         // 5. Log de evento de performance
-        logger.logPerformanceEvent("frame_processing", mapOf(
+        logger.logPerformanceEvent("frame_processing", mapOf<String, Any>(
             "frame_time_ms" to 16.7,
             "gpu_time_ms" to 8.3,
             "cpu_time_ms" to 5.2,
@@ -396,7 +397,7 @@ class CompleteIntegrationExample {
             logger.logCriticalEvent(
                 eventType = "critical_failure",
                 message = "Critical operation failed",
-                context = mapOf(
+                context = mapOf<String, Any>(
                     "operation" to "shizuku_connection",
                     "attempt" to 3,
                     "retryable" to true,
@@ -412,7 +413,7 @@ class CompleteIntegrationExample {
     /**
      * Demonstra monitoramento de performance em tempo real
      */
-    private fun demonstratePerformanceMonitoring(service: InputBridgeService) {
+    private fun demonstratePerformanceMonitoring(service: InputBridgeServiceEnhanced) {
         val metrics = service.getPerformanceMetrics()
         val logger = service.getStructuredLogger()
 
@@ -425,7 +426,7 @@ class CompleteIntegrationExample {
         val eventsProcessed = metrics.getEventsProcessed()
         val eventsDropped = metrics.getEventsDropped()
 
-        logger.info("Real-time Performance Metrics", "performance_monitor", mapOf(
+        logger.info("Real-time Performance Metrics", "performance_monitor", mapOf<String, Any>(
             "fps" to currentFps,
             "avg_latency_ms" to "%.2f".format(avgLatency),
             "success_rate" to "%.1f".format(successRate),
@@ -436,12 +437,12 @@ class CompleteIntegrationExample {
 
         // 2. Gera relatório completo
         val textReport = metrics.generateMetricsReport()
-        logger.debug("Metrics Text Report", "performance_report", mapOf(
+        logger.debug("Metrics Text Report", "performance_report", mapOf<String, Any>(
             "report" to textReport.replace("\n", " | ")
         ))
 
         val jsonReport = metrics.generateMetricsJsonReport()
-        logger.debug("Metrics JSON Report", "performance_report", mapOf(
+        logger.debug("Metrics JSON Report", "performance_report", mapOf<String, Any>(
             "report_length" to jsonReport.length
         ))
 
@@ -451,7 +452,7 @@ class CompleteIntegrationExample {
         val latency99th = metrics.getLatency99thPercentileMs()
         val avgJitter = metrics.getAverageJitterMs()
 
-        logger.info("Advanced Performance Analysis", "performance_analysis", mapOf(
+        logger.info("Advanced Performance Analysis", "performance_analysis", mapOf<String, Any>(
             "latency_stddev_ms" to "%.2f".format(latencyStdDev),
             "latency_95th_ms" to "%.2f".format(latency95th),
             "latency_99th_ms" to "%.2f".format(latency99th),
@@ -462,7 +463,7 @@ class CompleteIntegrationExample {
 
         // 4. Verifica condições de performance
         if (currentFps < 45) {
-            logger.warn("Performance Warning: Low FPS", "performance_alert", mapOf(
+            logger.warn("Performance Warning: Low FPS", "performance_alert", mapOf<String, Any>(
                 "current_fps" to currentFps,
                 "threshold" to 45,
                 "recommended_action" to "reduce_prediction_factor"
@@ -470,7 +471,7 @@ class CompleteIntegrationExample {
         }
 
         if (successRate < 95.0) {
-            logger.warn("Performance Warning: Low Success Rate", "performance_alert", mapOf(
+            logger.warn("Performance Warning: Low Success Rate", "performance_alert", mapOf<String, Any>(
                 "current_rate" to "%.1f".format(successRate),
                 "threshold" to 95.0,
                 "recommended_action" to "check_shizuku_connection"
@@ -478,7 +479,7 @@ class CompleteIntegrationExample {
         }
 
         if (avgLatency > 10.0) {
-            logger.warn("Performance Warning: High Latency", "performance_alert", mapOf(
+            logger.warn("Performance Warning: High Latency", "performance_alert", mapOf<String, Any>(
                 "current_latency_ms" to "%.2f".format(avgLatency),
                 "threshold_ms" to 10.0,
                 "recommended_action" to "optimize_processing_pipeline"
@@ -506,7 +507,7 @@ class CompleteIntegrationExample {
     /**
      * Demonstração de cenário completo de jogo
      */
-    fun demonstrateGameScenario(service: InputBridgeService) {
+    fun demonstrateGameScenario(service: InputBridgeServiceEnhanced) {
         val logger = service.getStructuredLogger()
         val metrics = service.getPerformanceMetrics()
         val configManager = service.getConfigManager()
@@ -524,7 +525,7 @@ class CompleteIntegrationExample {
         configManager.updateConfig("enable_input_smoothing" to true)
 
         // 3. Simula eventos de jogo
-        logger.info("Game started", "game_event", mapOf(
+        logger.info("Game started", "game_event", mapOf<String, Any>(
             "game_type" to "racing",
             "track" to "monza",
             "players" to 2,
@@ -542,7 +543,7 @@ class CompleteIntegrationExample {
             val touchX = ((axisX + 1.0f) / 2.0f) * 1920
             val touchY = 1080f + ((axisY + 1.0f) / 2.0f) * 540
 
-            logger.logTransformationEvent(axisX, axisY, touchX, touchY, mapOf(
+            logger.logTransformationEvent(axisX, axisY, touchX, touchY, mapOf<String, Any>(
                 "frame" to frame,
                 "game_time_ms" to frame * 16
             ))
@@ -567,7 +568,7 @@ class CompleteIntegrationExample {
 
             // Loga métricas periodicamente
             if (frame % 30 == 0) {
-                logger.logPerformanceEvent("game_frame_batch", mapOf(
+                logger.logPerformanceEvent("game_frame_batch", mapOf<String, Any>(
                     "batch_frames" to 30,
                     "current_fps" to metrics.getCurrentFps(),
                     "avg_latency_ms" to "%.2f".format(metrics.getAverageProcessingLatencyMs())
@@ -579,7 +580,7 @@ class CompleteIntegrationExample {
         }
 
         // 4. Finaliza o jogo
-        logger.info("Game completed", "game_event", mapOf(
+        logger.info("Game completed", "game_event", mapOf<String, Any>(
             "duration_seconds" to 100 * 0.016,
             "final_fps" to metrics.getCurrentFps(),
             "avg_latency_ms" to "%.2f".format(metrics.getAverageProcessingLatencyMs()),
@@ -588,7 +589,7 @@ class CompleteIntegrationExample {
 
         // 5. Gera relatório final
         val finalReport = metrics.generateMetricsReport()
-        logger.info("Final Game Report", "game_report", mapOf(
+        logger.info("Final Game Report", "game_report", mapOf<String, Any>(
             "report" to finalReport.replace("\n", " | ")
         ))
 
@@ -602,7 +603,7 @@ class CompleteIntegrationExample {
     /**
      * Demonstração de recuperação de falhas
      */
-    fun demonstrateFailureRecovery(service: InputBridgeService) {
+    fun demonstrateFailureRecovery(service: InputBridgeServiceEnhanced) {
         val logger = service.getStructuredLogger()
         val metrics = service.getPerformanceMetrics()
         val configManager = service.getConfigManager()
@@ -618,7 +619,7 @@ class CompleteIntegrationExample {
             logger.logCriticalEvent(
                 eventType = "shizuku_failure",
                 message = "Shizuku connection lost",
-                context = mapOf(
+                context = mapOf<String, Any>(
                     "attempt" to 1,
                     "recovery_attempted" to true,
                     "fallback_enabled" to true
@@ -653,7 +654,7 @@ class CompleteIntegrationExample {
     /**
      * Demonstração de otimização de performance
      */
-    fun demonstratePerformanceOptimization(service: InputBridgeService) {
+    fun demonstratePerformanceOptimization(service: InputBridgeServiceEnhanced) {
         val logger = service.getStructuredLogger()
         val metrics = service.getPerformanceMetrics()
         val configManager = service.getConfigManager()
@@ -665,7 +666,7 @@ class CompleteIntegrationExample {
         val initialLatency = metrics.getAverageProcessingLatencyMs()
         val initialSuccessRate = metrics.getInjectionSuccessRate()
 
-        logger.info("Initial Performance Metrics", "optimization_start", mapOf(
+        logger.info("Initial Performance Metrics", "optimization_start", mapOf<String, Any>(
             "fps" to initialFps,
             "latency_ms" to "%.2f".format(initialLatency),
             "success_rate" to "%.1f".format(initialSuccessRate)
@@ -692,7 +693,7 @@ class CompleteIntegrationExample {
         val optimizedLatency = (initialLatency * 0.8).coerceAtLeast(1.0) // 20% melhor
         val optimizedSuccessRate = (initialSuccessRate + 5).coerceAtMost(100.0) // 5% melhor
 
-        logger.info("Optimized Performance Metrics", "optimization_result", mapOf(
+        logger.info("Optimized Performance Metrics", "optimization_result", mapOf<String, Any>(
             "fps" to optimizedFps,
             "latency_ms" to "%.2f".format(optimizedLatency),
             "success_rate" to "%.1f".format(optimizedSuccessRate),

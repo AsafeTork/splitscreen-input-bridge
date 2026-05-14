@@ -22,7 +22,6 @@ import android.view.WindowManager
 import androidx.work.WorkManager
 import com.splitscreen.inputbridge.config.AdvancedConfigManager
 import com.splitscreen.inputbridge.logging.EnhancedStructuredLogger
-import com.splitscreen.inputbridge.metrics.EnhancedPerformanceMetrics
 import com.splitscreen.inputbridge.metrics.PerformanceMetrics
 import com.splitscreen.inputbridge.persistence.ProfilePersistenceManager
 import com.splitscreen.inputbridge.repository.ControllerRegistry

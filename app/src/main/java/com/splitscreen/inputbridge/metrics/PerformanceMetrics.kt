@@ -593,4 +593,20 @@ class PerformanceMetrics(private val context: Context? = null) {
         }
         return list
     }
+
+    /**
+     * Obtém o escore de performance geral (0-100)
+     */
+    fun getOverallPerformanceScore(): Double {
+        val successRate = getInjectionSuccessRate()
+        val avgLatency = getAverageProcessingLatencyMs()
+        val fps = getCurrentFps().toDouble()
+
+        val successRateScore = successRate * 0.4
+        val latencyScore = if (avgLatency < 10) 100.0 else (100.0 - (avgLatency - 10) * 5).coerceAtLeast(0.0)
+        val fpsScore = if (fps >= 60) 100.0 else (fps / 60.0 * 100.0)
+        val stabilityScore = getStabilityIndex() * 0.2
+
+        return (successRateScore * 0.3 + latencyScore * 0.3 + fpsScore * 0.2 + stabilityScore * 0.2)
+    }
 }

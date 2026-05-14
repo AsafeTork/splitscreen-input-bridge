@@ -69,6 +69,9 @@ class InputBridgeServiceEnhanced : Service(), InputManager.InputDeviceListener {
     private lateinit var shizukuService: ShizukuServiceInterface
     private lateinit var watchdogManager: WatchdogManager
     private lateinit var performanceMetrics: PerformanceMetrics
+    private lateinit var structuredLogger: EnhancedStructuredLogger
+    private lateinit var configManager: AdvancedConfigManager
+    private lateinit var profileManager: ProfilePersistenceManager
 
     private var statusCallback: ((String, String, Boolean) -> Unit)? = null
 
@@ -114,6 +117,9 @@ class InputBridgeServiceEnhanced : Service(), InputManager.InputDeviceListener {
         shizukuService = ShizukuServiceRepository()
         watchdogManager = WatchdogManager(applicationContext, shizukuService)
         performanceMetrics = PerformanceMetrics()
+        structuredLogger = EnhancedStructuredLogger(TAG, performanceMetrics)
+        configManager = AdvancedConfigManager(applicationContext, structuredLogger)
+        profileManager = ProfilePersistenceManager(applicationContext, structuredLogger)
 
         // Setup state listeners
         setupStateListeners()
@@ -615,5 +621,26 @@ class InputBridgeServiceEnhanced : Service(), InputManager.InputDeviceListener {
      */
     fun getPerformanceMetrics(): PerformanceMetrics {
         return performanceMetrics
+    }
+
+    /**
+     * Get structured logger
+     */
+    fun getStructuredLogger(): EnhancedStructuredLogger {
+        return structuredLogger
+    }
+
+    /**
+     * Get configuration manager
+     */
+    fun getConfigManager(): AdvancedConfigManager {
+        return configManager
+    }
+
+    /**
+     * Get profile manager
+     */
+    fun getProfileManager(): ProfilePersistenceManager {
+        return profileManager
     }
 }

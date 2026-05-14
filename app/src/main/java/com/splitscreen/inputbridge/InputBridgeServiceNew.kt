@@ -8,7 +8,9 @@ import android.content.Context
 import android.content.Intent
 import android.hardware.input.InputManager
 import android.os.Binder
+import android.os.Handler
 import android.os.IBinder
+import android.os.Looper
 import android.util.DisplayMetrics
 import android.util.Log
 import android.view.Choreographer
@@ -84,6 +86,8 @@ class InputBridgeServiceNew : Service(), InputManager.InputDeviceListener {
     private var screenWidth: Int = 0
     private var screenHeight: Int = 0
     private var screenDensity: Float = 1.0f
+
+    private val mainHandler = Handler(Looper.getMainLooper())
 
     override fun onCreate() {
         super.onCreate()

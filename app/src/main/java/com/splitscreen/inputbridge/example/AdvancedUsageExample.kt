@@ -1,11 +1,16 @@
 package com.splitscreen.inputbridge.example
 
 import android.content.Context
-import com.splitscreen.inputbridge.InputBridgeService
+import com.splitscreen.inputbridge.InputBridgeServiceEnhanced
 import com.splitscreen.inputbridge.config.AdvancedConfigManager
 import com.splitscreen.inputbridge.metrics.PerformanceMetrics
 import com.splitscreen.inputbridge.metrics.SystemMetricsCollector
 import com.splitscreen.inputbridge.persistence.ProfilePersistenceManager
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
+import kotlin.math.roundToInt
 
 /**
  * Exemplos avançados de uso das novas funcionalidades implementadas
@@ -16,7 +21,7 @@ class AdvancedUsageExample {
     /**
      * Exemplo 1: Monitoramento completo de performance com métricas de sistema
      */
-    fun monitorCompletePerformance(service: InputBridgeService) {
+    fun monitorCompletePerformance(service: InputBridgeServiceEnhanced) {
         val metrics = service.getPerformanceMetrics()
         val logger = service.getStructuredLogger()
 
@@ -57,7 +62,7 @@ class AdvancedUsageExample {
     /**
      * Exemplo 2: Logging para arquivo com rotação automática
      */
-    fun fileLoggingExample(service: InputBridgeService, context: Context) {
+    fun fileLoggingExample(service: InputBridgeServiceEnhanced, context: Context) {
         val logger = service.getStructuredLogger()
 
         // Obtém o caminho do arquivo de log atual
@@ -93,7 +98,7 @@ class AdvancedUsageExample {
     /**
      * Exemplo 3: Configurações avançadas com modos de performance
      */
-    fun advancedConfigExample(service: InputBridgeService) {
+    fun advancedConfigExample(service: InputBridgeServiceEnhanced) {
         val configManager = service.getConfigManager()
 
         // Ativa o modo de economia de bateria
@@ -145,7 +150,7 @@ class AdvancedUsageExample {
     /**
      * Exemplo 4: Gerenciamento avançado de perfis com backup automático
      */
-    fun advancedProfileManagement(service: InputBridgeService) {
+    fun advancedProfileManagement(service: InputBridgeServiceEnhanced) {
         val profileManager = service.getProfileManager()
 
         // Cria perfis especializados
@@ -188,17 +193,17 @@ class AdvancedUsageExample {
             val exportFile = java.io.File(service.getExternalFilesDir(null), "profiles_backup.json")
             exportFile.writeText(jsonExport)
             println("Profiles saved to: ${exportFile.absolutePath}")
-        }
 
-        // Verifica versão do formato de exportação
-        val exportVersion = profileManager.getExportVersion(jsonExport)
-        println("Export format version: $exportVersion")
+            // Verifica versão do formato de exportação
+            val exportVersion = profileManager.getExportVersion(jsonExport)
+            println("Export format version: $exportVersion")
+        }
     }
 
     /**
      * Exemplo 5: Integração completa com métricas de sistema e logging
      */
-    fun completeIntegrationExample(service: InputBridgeService, context: Context) {
+    fun completeIntegrationExample(service: InputBridgeServiceEnhanced, context: Context) {
         // 1. Monitoramento completo de performance
         monitorCompletePerformance(service)
 
@@ -233,7 +238,7 @@ class AdvancedUsageExample {
     /**
      * Exemplo 6: Análise de performance em tempo real
      */
-    fun realtimePerformanceAnalysis(service: InputBridgeService) {
+    fun realtimePerformanceAnalysis(service: InputBridgeServiceEnhanced) {
         val metrics = service.getPerformanceMetrics()
         val logger = service.getStructuredLogger()
         val configManager = service.getConfigManager()
@@ -322,7 +327,7 @@ class AdvancedUsageExample {
     /**
      * Exemplo 7: Diagnóstico completo do sistema
      */
-    fun systemDiagnostics(service: InputBridgeService, context: Context) {
+    fun systemDiagnostics(service: InputBridgeServiceEnhanced, context: Context) {
         val metrics = service.getPerformanceMetrics()
         val logger = service.getStructuredLogger()
         val profileManager = service.getProfileManager()
@@ -344,7 +349,7 @@ class AdvancedUsageExample {
             appendLine("Memory Usage: ${systemMetrics?.memoryUsageMb?.roundToInt()} MB")
             appendLine("Battery Level: ${systemMetrics?.batteryLevel}%")
             appendLine("Battery Temperature: ${systemMetrics?.batteryTemperature}°C")
-            appendLine("Storage Available: ${systemMetrics?.availableStorageMb} MB")
+            appendLine("Storage Available: ${systemMetrics?.availableStorageMb?.toFloat()} MB")
             appendLine("Process CPU: ${systemMetrics?.processCpuUsage?.roundToInt()}%")
             appendLine("Charging: ${systemMetrics?.isCharging}")
             appendLine()

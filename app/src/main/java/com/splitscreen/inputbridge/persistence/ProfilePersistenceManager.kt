@@ -5,10 +5,7 @@ import android.content.SharedPreferences
 import android.os.Build
 import androidx.annotation.WorkerThread
 import com.splitscreen.inputbridge.logging.StructuredLogger
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
+import kotlinx.coroutines.*
 import org.json.JSONArray
 import org.json.JSONObject
 import java.util.concurrent.atomic.AtomicBoolean

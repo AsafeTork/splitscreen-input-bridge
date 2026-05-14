@@ -62,5 +62,13 @@
             android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
             tools:ignore="ExportedService" />
 
+        <receiver
+            android:name=".util.AdbTestReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.splitscreen.inputbridge.ADB_TEST" />
+            </intent-filter>
+        </receiver>
+
     </application>
 </manifest>

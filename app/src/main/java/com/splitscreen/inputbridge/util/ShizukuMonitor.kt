@@ -100,7 +100,12 @@ class ShizukuMonitor(private val context: Context) {
     private fun checkShizukuStatus() {
         try {
             val isBinderAlive = Shizuku.pingBinder()
-            val isPermissionGranted = ShizukuUserService.isPermissionGranted()
+            val isPermissionGranted = try {
+                ShizukuUserService.isPermissionGranted()
+            } catch (e: Exception) {
+                Log.e(TAG, "Error checking Shizuku permission", e)
+                false
+            }
 
             // Only notify if state has actually changed
             if (isBinderAlive != lastAvailableState || isPermissionGranted != lastPermissionState) {
@@ -114,6 +119,7 @@ class ShizukuMonitor(private val context: Context) {
             // If we get an exception, assume binder is dead
             if (lastAvailableState) {
                 lastAvailableState = false
+                lastPermissionState = false
                 notifyBinderDied()
             }
         }

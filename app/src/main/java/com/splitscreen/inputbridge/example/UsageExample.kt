@@ -76,10 +76,9 @@ class UsageExample {
         profileManager.importProfilesFromJson(jsonString)
 
         // Obtém todos os perfis disponíveis
-        val availableProfiles = profileManager.getAvailableProfiles()
-        availableProfiles?.forEach { profileName ->
-            val profile = profileManager.getProfile(profileName)
-            println("Profile: ${profile?.name}, Devices: P1=${profile?.player1Descriptor}, P2=${profile?.player2Descriptor}")
+        val allProfiles = profileManager.getAllProfiles()
+        allProfiles?.forEach { profile ->
+            println("Profile: ${profile.name}, Devices: P1=${profile.player1Descriptor}, P2=${profile.player2Descriptor}")
         }
     }
 

@@ -642,7 +642,9 @@ class EnhancedPerformanceMetrics(private val context: Context? = null) {
                 appendLine(",")
                 appendLine("  \"event_statistics\": {")
                 val eventStats = getEventStatistics().entries.sortedByDescending { it.value }
-                for ((i, (type, count)) in eventStats.withIndex()) {
+                for (indexedValue in eventStats.withIndex()) {
+                    val i = indexedValue.index
+                    val (type, count) = indexedValue.value
                     val comma = if (i < eventStats.size - 1) "," else ""
                     appendLine("    \"$type\": $count$comma")
                 }

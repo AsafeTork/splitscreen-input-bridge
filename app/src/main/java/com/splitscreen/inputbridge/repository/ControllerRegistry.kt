@@ -1,8 +1,8 @@
 package com.splitscreen.inputbridge.repository
 
 import android.content.Context
-import android.hardware.input.InputDevice
 import android.hardware.input.InputManager
+import android.view.InputDevice
 import android.util.Log
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers

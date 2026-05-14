@@ -501,7 +501,7 @@ class CompleteIntegrationExample {
 
     private fun loadProfilesFromFile(): String? {
         // Simulação de carregamento de arquivo
-        return "{"profiles":[],"current_profile":"default","version":1,"timestamp":${System.currentTimeMillis()}}"
+        return """{"profiles":[],"current_profile":"default","version":1,"timestamp":${System.currentTimeMillis()}}"""
     }
 
     /**

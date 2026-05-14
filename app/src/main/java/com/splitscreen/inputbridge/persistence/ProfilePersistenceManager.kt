@@ -52,19 +52,6 @@ class ProfilePersistenceManager(private val context: Context, private val logger
         val creationTimestamp: Long,
         val isDefault: Boolean = false
     ) {
-        companion object {
-            fun createDefault(name: String): UserProfile {
-                return UserProfile(
-                    name = name,
-                    player1Descriptor = "",
-                    player2Descriptor = "",
-                    configPreferences = emptyMap(),
-                    lastUsedTimestamp = System.currentTimeMillis(),
-                    creationTimestamp = System.currentTimeMillis(),
-                    isDefault = true
-                )
-            }
-        }
 
         fun toJson(): JSONObject {
             return JSONObject().apply {
@@ -93,6 +80,18 @@ class ProfilePersistenceManager(private val context: Context, private val logger
         }
 
         companion object {
+            fun createDefault(name: String): UserProfile {
+                return UserProfile(
+                    name = name,
+                    player1Descriptor = "",
+                    player2Descriptor = "",
+                    configPreferences = emptyMap(),
+                    lastUsedTimestamp = System.currentTimeMillis(),
+                    creationTimestamp = System.currentTimeMillis(),
+                    isDefault = true
+                )
+            }
+
             fun fromJson(json: JSONObject): UserProfile {
                 return UserProfile(
                     name = json.getString("name"),

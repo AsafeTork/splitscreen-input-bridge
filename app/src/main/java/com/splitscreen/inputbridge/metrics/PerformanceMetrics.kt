@@ -259,7 +259,7 @@ class PerformanceMetrics(private val context: Context? = null) {
     fun getLatencyStdDevMs(): Double {
         if (latencySamples.isEmpty()) return 0.0
         val mean = latencySamples.average()
-        val variance = latencySamples.map { (it - mean) * (it - mean) }.average()
+        val variance = latencySamples.toList().map { (it.toDouble() - mean) * (it.toDouble() - mean) }.average()
         return kotlin.math.sqrt(variance) / 1_000_000.0
     }
 

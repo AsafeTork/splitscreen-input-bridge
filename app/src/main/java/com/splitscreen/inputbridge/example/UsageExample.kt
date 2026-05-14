@@ -1,9 +1,12 @@
 package com.splitscreen.inputbridge.example
 
 import android.content.Context
-import com.splitscreen.inputbridge.InputBridgeService
-import com.splitscreen.inputbridge.config.DynamicConfigManager
+import com.splitscreen.inputbridge.InputBridgeServiceEnhanced
+import com.splitscreen.inputbridge.config.AdvancedConfigManager
 import com.splitscreen.inputbridge.persistence.ProfilePersistenceManager
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 /**
  * Exemplos de uso das novas funcionalidades implementadas
@@ -13,7 +16,7 @@ class UsageExample {
     /**
      * Exemplo 1: Configuração dinâmica de parâmetros
      */
-    fun configureRuntimeParameters(service: InputBridgeService) {
+    fun configureRuntimeParameters(service: InputBridgeServiceEnhanced) {
         val configManager = service.getConfigManager()
 
         // Atualiza a zona morta (deadzone) para 0.2
@@ -36,7 +39,7 @@ class UsageExample {
     /**
      * Exemplo 2: Gerenciamento de perfis
      */
-    fun manageProfiles(service: InputBridgeService, context: Context) {
+    fun manageProfiles(service: InputBridgeServiceEnhanced, context: Context) {
         val profileManager = service.getProfileManager()
 
         // Cria um novo perfil chamado "high_performance"
@@ -62,14 +65,14 @@ class UsageExample {
         )
 
         // Exporta todos os perfis para JSON
-        val exportScope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO)
+        val exportScope = CoroutineScope(Dispatchers.IO)
         exportScope.launch {
             val jsonExport = profileManager.exportProfilesToJson()
             // Salvar jsonExport em um arquivo ou enviar para nuvem
         }
 
         // Importa perfis de um JSON
-        val jsonString = "{"profiles": [...], "current_profile": "high_performance"}"
+        val jsonString = """{"profiles": [], "current_profile": "high_performance"}"""
         profileManager.importProfilesFromJson(jsonString)
 
         // Obtém todos os perfis disponíveis
@@ -83,7 +86,7 @@ class UsageExample {
     /**
      * Exemplo 3: Monitoramento de métricas de performance
      */
-    fun monitorPerformance(service: InputBridgeService) {
+    fun monitorPerformance(service: InputBridgeServiceEnhanced) {
         val metrics = service.getPerformanceMetrics()
         val logger = service.getStructuredLogger()
 
@@ -111,7 +114,7 @@ class UsageExample {
     /**
      * Exemplo 4: Logging estruturado avançado
      */
-    fun advancedLogging(service: InputBridgeService) {
+    fun advancedLogging(service: InputBridgeServiceEnhanced) {
         val logger = service.getStructuredLogger()
 
         // Log de informações
@@ -152,7 +155,7 @@ class UsageExample {
     /**
      * Exemplo 5: Integração completa
      */
-    fun fullIntegrationExample(service: InputBridgeService) {
+    fun fullIntegrationExample(service: InputBridgeServiceEnhanced) {
         // 1. Configurar parâmetros dinâmicos
         configureRuntimeParameters(service)
 
@@ -167,7 +170,7 @@ class UsageExample {
 
         // 5. Responder a mudanças de configuração
         val configManager = service.getConfigManager()
-        val configScope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Default)
+        val configScope = CoroutineScope(Dispatchers.Default)
 
         configScope.launch {
             configManager.configState.collect { configState ->
@@ -185,7 +188,7 @@ class UsageExample {
     /**
      * Exemplo 6: Persistência e recuperação de estado
      */
-    fun statePersistenceExample(service: InputBridgeService) {
+    fun statePersistenceExample(service: InputBridgeServiceEnhanced) {
         val profileManager = service.getProfileManager()
         val configManager = service.getConfigManager()
 
@@ -198,7 +201,7 @@ class UsageExample {
         configManager.loadConfig()
 
         // Exportar para backup
-        val exportScope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO)
+        val exportScope = CoroutineScope(Dispatchers.IO)
         exportScope.launch {
             val backupJson = profileManager.exportProfilesToJson()
             // Salvar em arquivo ou nuvem

@@ -2,6 +2,7 @@ package com.splitscreen.inputbridge.logging
 
 import android.os.Environment
 import android.util.Log
+import com.splitscreen.inputbridge.metrics.EnhancedPerformanceMetrics
 import com.splitscreen.inputbridge.metrics.PerformanceMetrics
 import org.json.JSONObject
 import java.io.File

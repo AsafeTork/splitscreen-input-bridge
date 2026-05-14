@@ -242,7 +242,7 @@ class EnhancedPerformanceMetrics(private val context: Context? = null) {
     fun getLatencyStdDevMs(): Double {
         if (latencySamples.isEmpty()) return 0.0
         val mean = latencySamples.average()
-        val variance = latencySamples.map { (it - mean) * (it - mean) }.average()
+        val variance = latencySamples.toList().map { (it.toDouble() - mean) * (it.toDouble() - mean) }.average()
         return kotlin.math.sqrt(variance) / 1_000_000.0
     }
 
@@ -643,7 +643,7 @@ class EnhancedPerformanceMetrics(private val context: Context? = null) {
                 appendLine("  \"event_statistics\": {")
                 val eventStats = getEventStatistics().entries.sortedByDescending { it.value }
                 for ((i, (type, count)) in eventStats.withIndex()) {
-                    val comma = if (i < eventStats.size - 1) "," else """)
+                    val comma = if (i < eventStats.size - 1) "," else ""
                     appendLine("    \"$type\": $count$comma")
                 }
                 appendLine("  }")

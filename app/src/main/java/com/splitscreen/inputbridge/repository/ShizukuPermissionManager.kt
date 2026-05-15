@@ -152,20 +152,12 @@ class ShizukuPermissionManager(private val context: Context) {
             var recoveryAttempted = false
             var recoverySuccessful = false
 
-            // If binder is alive but permission is not granted, try recovery
             if (binderAlive && !permissionGranted) {
                 Log.w(TAG, "Binder alive but permission not granted - attempting recovery")
                 recoveryAttempted = true
 
-                // Try force refresh permission state
                 try {
-                    // Force a binder refresh
                     Shizuku.getBinder()
-
-                    // Wait a moment for state to settle
-                    Thread.sleep(100)
-
-                    // Check permission again
                     permissionGranted = isShizukuPermissionGranted()
 
                     if (permissionGranted) {

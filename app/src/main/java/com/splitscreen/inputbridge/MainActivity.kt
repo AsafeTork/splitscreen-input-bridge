@@ -3,6 +3,7 @@ package com.splitscreen.inputbridge
 
 import android.content.ComponentName
 import android.content.ContentResolver
+import android.content.Context
 import android.content.Intent
 import android.content.ServiceConnection
 import android.hardware.input.InputManager
@@ -770,6 +771,5 @@ fun BridgeControlCard(state: BridgeUiState, onToggle: () -> Unit) {
                 Log.e("MainActivity", "Error opening main settings", e2)
             }
         }
-            }
-        }
     }
+}

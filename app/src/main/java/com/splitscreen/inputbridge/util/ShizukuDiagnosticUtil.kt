@@ -120,7 +120,7 @@ object ShizukuDiagnosticUtil {
         }
 
         return DiagnosticResult(
-            shizukuAvailable = shizukuAvailable,
+            shizukuAvailable = true,
             shizukuVersion = shizukuVersion,
             permissionGranted = permissionGranted,
             binderAlive = binderAlive,

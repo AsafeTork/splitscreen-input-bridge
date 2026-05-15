@@ -264,7 +264,7 @@ class MainActivity : ComponentActivity(), InputManager.InputDeviceListener {
         try {
             val isBinderAlive = Shizuku.pingBinder()
             val isPermissionGranted = Shizuku.checkSelfPermission() == android.content.pm.PackageManager.PERMISSION_GRANTED
-            val isAccessibilityEnabled = isAccessibilityServiceEnabled()
+            val isAccessibilityEnabled = isAccessibilityServiceEnabled(this)
 
             Log.d("MainActivity", "Checking Shizuku permission - binderAlive: $isBinderAlive, permissionGranted: $isPermissionGranted, accessibilityEnabled: $isAccessibilityEnabled")
 
@@ -738,10 +738,10 @@ fun BridgeControlCard(state: BridgeUiState, onToggle: () -> Unit) {
     }
 }
 
-    private fun isAccessibilityServiceEnabled(): Boolean {
-        val expectedComponentName = ComponentName(this, InputBridgeAccessibilityService::class.java)
+    private fun isAccessibilityServiceEnabled(context: Context): Boolean {
+        val expectedComponentName = ComponentName(context, InputBridgeAccessibilityService::class.java)
         val enabledServicesSetting = Settings.Secure.getString(
-            contentResolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
+            context.contentResolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
         ) ?: return false
 
         val colonSplitter = android.text.TextUtils.SimpleStringSplitter(':')
@@ -756,18 +756,20 @@ fun BridgeControlCard(state: BridgeUiState, onToggle: () -> Unit) {
         return false
     }
 
-    private fun openAccessibilitySettings() {
+    private fun openAccessibilitySettings(context: Context) {
         try {
             val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
-            startActivity(intent)
+            context.startActivity(intent)
         } catch (e: Exception) {
             Log.e("MainActivity", "Error opening accessibility settings", e)
             // Fallback to main settings
             try {
                 val intent = Intent(Settings.ACTION_SETTINGS)
-                startActivity(intent)
+                context.startActivity(intent)
             } catch (e2: Exception) {
                 Log.e("MainActivity", "Error opening main settings", e2)
+            }
+        }
             }
         }
     }

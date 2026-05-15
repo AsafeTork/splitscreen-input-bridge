@@ -4,14 +4,10 @@ plugins {
     id 'org.jetbrains.kotlin.plugin.parcelize'
 }
 
-// Repositório Maven do Shizuku
-repositories {
-    maven { url 'https://maven.rikka.app' }
-}
-
 android {
     namespace 'com.splitscreen.inputbridge'
     compileSdk 34
+    compileSdkVersion 34
 
     defaultConfig {
         applicationId "com.splitscreen.inputbridge"

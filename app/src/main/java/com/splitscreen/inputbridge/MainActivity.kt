@@ -772,4 +772,3 @@ fun BridgeControlCard(state: BridgeUiState, onToggle: () -> Unit) {
             }
         }
     }
-}

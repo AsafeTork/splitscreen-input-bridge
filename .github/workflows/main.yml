@@ -38,7 +38,8 @@ jobs:
       - name: Validate Shizuku in Manifest
         run: |
           echo "=== Verificando integração Shizuku no APK ==="
-          MANIFEST=$(aapt2 dump xmltree --file AndroidManifest.xml app/build/outputs/apk/debug/app-debug.apk 2>/dev/null)
+          # Extrair AndroidManifest.xml binário do APK e buscar strings ASCII
+          MANIFEST_BIN=$(unzip -p app/build/outputs/apk/debug/app-debug.apk AndroidManifest.xml 2>/dev/null)
           checks=(
             "rikka.shizuku.ShizukuProvider:ShizukuProvider"
             "moe.shizuku.manager:queries/moe.shizuku.manager"
@@ -49,10 +50,10 @@ jobs:
           for check in "${checks[@]}"; do
             pattern="${check%%:*}"
             label="${check##*:}"
-            if echo "$MANIFEST" | grep -q "$pattern"; then
+            if echo "$MANIFEST_BIN" | grep -q "$pattern"; then
               echo "  ✓: $label"
             else
-              echo "  ✗ CRÍTICO: $label"
+              echo "  ✗ CRITICO: $label"
               all_ok=false
             fi
           done
@@ -60,7 +61,7 @@ jobs:
             echo -e "\n✅ Todas as integrações Shizuku presentes no APK!"
           else
             echo -e "\n❌ ALERTA: Integrações Shizuku AUSENTES no APK!"
-            echo "   O app NÃO vai detectar o Shizuku em runtime!"
+            echo "   O app NAO vai detectar o Shizuku em runtime!"
             exit 1
           fi
 

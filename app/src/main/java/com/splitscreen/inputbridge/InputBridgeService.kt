@@ -47,7 +47,7 @@ import kotlin.system.measureTimeMillis
 class InputBridgeService : Service(), InputManager.InputDeviceListener {
 
     companion object {
-        private const val TAG = "InputBridgeService"
+        private const val TAG = "SHIZUKU_DEBUG"
         private const val CHANNEL_ID = "bridge_channel"
         private const val NOTIF_ID = 1
         private const val MSG_INJECT_EVENT = 1

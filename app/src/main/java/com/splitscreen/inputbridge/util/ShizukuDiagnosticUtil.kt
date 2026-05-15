@@ -183,17 +183,17 @@ object ShizukuDiagnosticUtil {
             Log.w(TAG, "Diagnostic issue: $issue")
         }
 
-            return DiagnosticResult(
-                shizukuAvailable = false,
-                shizukuVersion = -1,
-                permissionGranted = false,
-                binderAlive = false,
-                shellExecutionWorking = false,
-                systemSettingsAccessible = false,
-                binderReceived = false,
-                permissionCheckMethod = "Not available",
-                issues = issues
-            )
+        return DiagnosticResult(
+            shizukuAvailable = shizukuAvailable,
+            shizukuVersion = shizukuVersion,
+            permissionGranted = permissionGranted,
+            binderAlive = binderAlive,
+            shellExecutionWorking = shellExecutionWorking,
+            systemSettingsAccessible = systemSettingsAccessible,
+            binderReceived = binderReceived,
+            permissionCheckMethod = permissionCheckMethod,
+            issues = issues
+        )
     }
 
     /**

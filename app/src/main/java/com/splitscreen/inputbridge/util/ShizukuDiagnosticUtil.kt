@@ -33,33 +33,8 @@ object ShizukuDiagnosticUtil {
      */
     fun performDiagnostic(context: Context): DiagnosticResult {
         Log.i(TAG, "Starting Shizuku diagnostic")
-
         val issues = mutableListOf<String>()
 
-        // Check if Shizuku is available
-        val shizukuAvailable = try {
-            Class.forName("rikka.shizuku.Shizuku")
-            true
-        } catch (e: ClassNotFoundException) {
-            issues.add("Shizuku library not found in classpath")
-            false
-        }
-
-        if (!shizukuAvailable) {
-            return DiagnosticResult(
-                shizukuAvailable = false,
-                shizukuVersion = -1,
-                permissionGranted = false,
-                binderAlive = false,
-                shellExecutionWorking = false,
-                systemSettingsAccessible = false,
-                binderReceived = false,
-                permissionCheckMethod = "Not available",
-                issues = issues
-            )
-        }
-
-        // Check Shizuku version
         val shizukuVersion = try {
             Shizuku.getVersion()
         } catch (e: Exception) {
@@ -67,12 +42,10 @@ object ShizukuDiagnosticUtil {
             -1
         }
 
-        // Check if version is compatible
         if (shizukuVersion > 0 && shizukuVersion < 11) {
             issues.add("Shizuku version $shizukuVersion is below minimum required version 11")
         }
 
-        // Check binder status
         val binderAlive = try {
             Shizuku.pingBinder()
         } catch (e: Exception) {
@@ -80,7 +53,6 @@ object ShizukuDiagnosticUtil {
             false
         }
 
-        // Check if binder was received (sticky check)
         val binderReceived = try {
             Shizuku.getBinder() != null
         } catch (e: Exception) {
@@ -88,53 +60,17 @@ object ShizukuDiagnosticUtil {
             false
         }
 
-        // Check permission status with multiple methods
-        var permissionGranted = false
-        var permissionCheckMethod = "Unknown"
-
-        try {
-            // Method 1: Direct check
-            val directCheck = Shizuku.checkSelfPermission() == android.content.pm.PackageManager.PERMISSION_GRANTED
-            if (directCheck) {
-                permissionGranted = true
-                permissionCheckMethod = "Direct"
-            }
+        val permissionGranted = try {
+            Shizuku.checkSelfPermission() == android.content.pm.PackageManager.PERMISSION_GRANTED
         } catch (e: Exception) {
-            issues.add("Direct permission check failed: ${e.message}")
+            issues.add("Permission check failed: ${e.message}")
+            false
         }
 
-        // Method 2: Check with binder context if not granted via direct method
-        if (!permissionGranted) {
-            try {
-                val binder = Shizuku.getBinder()
-                if (binder != null) {
-                    // Try to get permission from binder context
-                    permissionGranted = true
-                    permissionCheckMethod = "BinderContext"
-                }
-            } catch (e: Exception) {
-                issues.add("Binder context permission check failed: ${e.message}")
-            }
-        }
-
-        // Method 3: Check with reflection as fallback
-        if (!permissionGranted) {
-            try {
-                val shizukuClass = Class.forName("rikka.shizuku.Shizuku")
-                val method = shizukuClass.getDeclaredMethod("checkSelfPermission")
-                method.isAccessible = true
-                val result = method.invoke(null) as Int
-                if (result == android.content.pm.PackageManager.PERMISSION_GRANTED) {
-                    permissionGranted = true
-                    permissionCheckMethod = "Reflection"
-                }
-            } catch (e: Exception) {
-                issues.add("Reflection permission check failed: ${e.message}")
-            }
-        }
+        val permissionCheckMethod = if (permissionGranted) "Direct" else "N/A"
 
         if (!permissionGranted) {
-            issues.add("All permission checking methods failed to detect granted permission")
+            issues.add("Shizuku permission not granted")
         }
 
         // Check shell execution

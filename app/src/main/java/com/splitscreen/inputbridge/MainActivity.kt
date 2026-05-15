@@ -33,6 +33,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.splitscreen.inputbridge.repository.ShizukuPermissionManager
 import com.splitscreen.inputbridge.ui.theme.SplitScreenInputBridgeTheme
+import com.splitscreen.inputbridge.util.ShizukuDiagnosticUtil
 import com.splitscreen.inputbridge.util.ShizukuMonitor
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -44,8 +45,10 @@ import java.util.Locale
 class MainActivity : ComponentActivity(), InputManager.InputDeviceListener {
 
     // ===== NUCLEAR LOGGING =====
+    private val logFormatter = SimpleDateFormat("HH:mm:ss.SSS", Locale.US)
+
     private fun tsLog(tag: String, msg: String) {
-        val ts = SimpleDateFormat("HH:mm:ss.SSS", Locale.US).format(Date())
+        val ts = logFormatter.format(Date())
         Log.d("SHIZUKU_DEBUG", "[$ts] [$tag] $msg")
     }
 
@@ -367,11 +370,10 @@ class MainActivity : ComponentActivity(), InputManager.InputDeviceListener {
         Log.d("MainActivity", "Running Shizuku diagnostics")
         Thread {
             try {
-                val diagnosticResult = com.splitscreen.inputbridge.util.ShizukuDiagnosticUtil.performDiagnostic(this)
-                com.splitscreen.inputbridge.util.ShizukuDiagnosticUtil.logDiagnosticResults(diagnosticResult)
+                val diagnosticResult = ShizukuDiagnosticUtil.performDiagnostic(this)
+                ShizukuDiagnosticUtil.logDiagnosticResults(diagnosticResult)
 
-                // Get troubleshooting suggestions
-                val suggestions = com.splitscreen.inputbridge.util.ShizukuDiagnosticUtil.getTroubleshootingSuggestions(diagnosticResult)
+                val suggestions = ShizukuDiagnosticUtil.getTroubleshootingSuggestions(diagnosticResult)
 
                 // Log suggestions
                 Log.i("MainActivity", "=== Troubleshooting Suggestions ===")
@@ -381,7 +383,7 @@ class MainActivity : ComponentActivity(), InputManager.InputDeviceListener {
                 Log.i("MainActivity", "==================================")
 
                 // Update UI with diagnostic results
-                runOnUiThread {
+                this@MainActivity.runOnUiThread {
                     val issueCount = diagnosticResult.issues.size
                     val message = if (issueCount == 0) {
                         "Diagnóstico completo: Nenhum problema encontrado"
@@ -414,7 +416,7 @@ class MainActivity : ComponentActivity(), InputManager.InputDeviceListener {
                 }
             } catch (e: Exception) {
                 Log.e("MainActivity", "Error running diagnostics", e)
-                runOnUiThread {
+                this@MainActivity.runOnUiThread {
                     _uiState.value = _uiState.value.copy(
                         statusMessage = "Erro no diagnóstico: ${e.message}",
                         detailedStatus = "Falha no diagnóstico - veja logs para detalhes"
@@ -422,14 +424,6 @@ class MainActivity : ComponentActivity(), InputManager.InputDeviceListener {
                 }
             }
         }.start()
-    }
-
-    private fun runOnUiThread(action: () -> Unit) {
-        if (Thread.currentThread() == Looper.getMainLooper().thread) {
-            action()
-        } else {
-            handler.post { action() }
-        }
     }
 
     override fun onInputDeviceAdded(deviceId: Int) = refreshGamepads()

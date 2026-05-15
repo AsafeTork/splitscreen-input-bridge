@@ -10,7 +10,6 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
-        maven { url 'https://maven.rikka.app' } // Repositório Maven do Shizuku
     }
 }
 rootProject.name = "splitscreen-input-bridge"

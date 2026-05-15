@@ -16,9 +16,6 @@
             <action android:name="moe.shizuku.api.action" />
         </intent>
     </queries>
-    <!-- Força preservação do queries no merge -->
-    <uses-permission android:name="moe.shizuku.manager.permission.API_V23"
-        tools:node="merge" />
 
     <uses-feature android:name="android.hardware.bluetooth" android:required="false" />
 

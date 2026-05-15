@@ -71,3 +71,35 @@ jobs:
               du -h app/build/outputs/apk/debug/app-debug.apk
             fi
           fi
+
+      - name: Validate Shizuku in Manifest
+        run: |
+          echo "=== Verificando integração Shizuku no APK ==="
+          # Extrair AndroidManifest.xml do APK
+          unzip -p app/build/outputs/apk/debug/app-debug.apk AndroidManifest.xml 2>/dev/null | python3 -c "
+          import sys, xml.dom.minidom
+          try:
+              data = sys.stdin.buffer.read()
+              dom = xml.dom.minidom.parseString(data)
+              manifest_str = dom.toprettyxml()
+              checks = {
+                  'ShizukuProvider': 'rikka.shizuku.ShizukuProvider' in manifest_str,
+                  'queries/moe.shizuku.manager': 'moe.shizuku.manager' in manifest_str,
+                  'API_V23 permission': 'moe.shizuku.manager.permission.API_V23' in manifest_str,
+                  'V3_SUPPORT': 'moe.shizuku.client.V3_SUPPORT' in manifest_str,
+              }
+              all_ok = True
+              for name, result in checks.items():
+                  icon = '✓' if result else '✗ CRÍTICO'
+                  print(f'  {icon}: {name}')
+                  if not result:
+                      all_ok = False
+              if all_ok:
+                  print('\\n✅ Todas as integrações Shizuku presentes no APK!')
+              else:
+                  print('\\n❌ ALERTA: Integrações Shizuku AUSENTES no APK!')
+                  print('   O app NÃO vai detectar o Shizuku em runtime!')
+          except Exception as e:
+              print(f'Erro ao processar manifest: {e}')
+              sys.exit(1)
+          "

@@ -303,6 +303,16 @@ class InputBridgeService : Service(), InputManager.InputDeviceListener {
 
     override fun onBind(intent: Intent?): IBinder = binder
 
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        Log.d(TAG, "[SERVICE_START] onStartCommand flags=$flags startId=$startId")
+        val shizukuReady = shizukuService.isReady()
+        Log.d(TAG, "[SERVICE_START] Shizuku ready: $shizukuReady")
+        if (!shizukuReady) {
+            Log.w(TAG, "[SERVICE_START] Shizuku NOT ready — service will wait for binder events")
+        }
+        return START_STICKY
+    }
+
     fun setStatusCallback(cb: (String, String, Boolean) -> Unit) {
         statusCallback = cb
         // Send current state to callback

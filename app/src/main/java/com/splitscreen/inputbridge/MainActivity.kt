@@ -139,45 +139,68 @@ class MainActivity : ComponentActivity(), InputManager.InputDeviceListener {
         stopPermissionMonitoring()
     }
 
+    private fun safeBinderAlive(): Boolean = try { Shizuku.pingBinder() } catch (_: Exception) { false }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        inputManager = getSystemService(InputManager::class.java)
-        inputManager.registerInputDeviceListener(this, null)
-
-        // Initialize Shizuku permission manager and monitor
-        shizukuPermissionManager = ShizukuPermissionManager(this)
-        shizukuMonitor = ShizukuMonitor(this).apply {
-            addListener(object : ShizukuMonitor.ShizukuStatusListener {
-                override fun onShizukuStatusChanged(available: Boolean, permissionGranted: Boolean) {
-                    Log.d("MainActivity", "ShizukuMonitor status changed - available: $available, permission: $permissionGranted")
-                    updateShizukuPermissionState(permissionGranted)
-                }
-
-                override fun onShizukuBinderDied() {
-                    Log.d("MainActivity", "Shizuku binder died (from monitor)")
-                    _uiState.value = _uiState.value.copy(
-                        shizukuAvailable = false,
-                        shizukuGranted = false,
-                        serviceConnected = false,
-                        bridgeActive = false,
-                        statusMessage = "Shizuku não disponível"
-                    )
-                    // Stop permission monitoring when Shizuku dies
-                    stopPermissionMonitoring()
-                }
-            })
-            // More frequent checks when activity is in foreground
-            setCheckInterval(500) // 500ms for very responsive updates
-            startMonitoring()
+        try {
+            inputManager = getSystemService(InputManager::class.java)
+            inputManager.registerInputDeviceListener(this, null)
+        } catch (e: Exception) {
+            Log.e("CRASH_DEBUG", "inputManager init failed: ${e.message}", e)
         }
 
-        Shizuku.addRequestPermissionResultListener(shizukuListener)
-        Shizuku.addBinderReceivedListenerSticky(shizukuBinderReceivedStickyListener)
-        Shizuku.addBinderReceivedListener(shizukuPermissionChangeListener)
-        Shizuku.addBinderDeadListener(shizukuBinderDeadListener)
+        // SAFE: Shizuku init — wrapped to prevent crash
+        try {
+            shizukuPermissionManager = ShizukuPermissionManager(this)
+        } catch (e: Exception) {
+            Log.e("CRASH_DEBUG", "ShizukuPermissionManager init failed: ${e.message}", e)
+        }
 
-        refreshGamepads()
+        // Defer Shizuku listener registration to avoid crash during init
+        handler.postDelayed({
+            try {
+                shizukuMonitor = ShizukuMonitor(this).apply {
+                    addListener(object : ShizukuMonitor.ShizukuStatusListener {
+                        override fun onShizukuStatusChanged(available: Boolean, permissionGranted: Boolean) {
+                            try {
+                                updateShizukuPermissionState(permissionGranted)
+                            } catch (e: Exception) {
+                                Log.e("CRASH_DEBUG", "onShizukuStatusChanged error: ${e.message}", e)
+                            }
+                        }
+                        override fun onShizukuBinderDied() {
+                            try {
+                                _uiState.value = _uiState.value.copy(
+                                    shizukuAvailable = false, shizukuGranted = false,
+                                    serviceConnected = false, bridgeActive = false,
+                                    statusMessage = "Shizuku não disponível"
+                                )
+                                stopPermissionMonitoring()
+                            } catch (e: Exception) {
+                                Log.e("CRASH_DEBUG", "onShizukuBinderDied error: ${e.message}", e)
+                            }
+                        }
+                    })
+                    setCheckInterval(500)
+                    if (safeBinderAlive()) startMonitoring()
+                }
+            } catch (e: Exception) {
+                Log.e("CRASH_DEBUG", "ShizukuMonitor init failed: ${e.message}", e)
+            }
+
+            try { Shizuku.addRequestPermissionResultListener(shizukuListener) } catch (e: Exception) { Log.e("CRASH_DEBUG", "addRequestPermissionResultListener failed: ${e.message}", e) }
+            try { Shizuku.addBinderReceivedListenerSticky(shizukuBinderReceivedStickyListener) } catch (e: Exception) { Log.e("CRASH_DEBUG", "addBinderReceivedSticky failed: ${e.message}", e) }
+            try { Shizuku.addBinderReceivedListener(shizukuPermissionChangeListener) } catch (e: Exception) { Log.e("CRASH_DEBUG", "addBinderReceivedListener failed: ${e.message}", e) }
+            try { Shizuku.addBinderDeadListener(shizukuBinderDeadListener) } catch (e: Exception) { Log.e("CRASH_DEBUG", "addBinderDeadListener failed: ${e.message}", e) }
+        }, 500)
+
+        try {
+            refreshGamepads()
+        } catch (e: Exception) {
+            Log.e("CRASH_DEBUG", "refreshGamepads failed: ${e.message}", e)
+        }
 
         setContent {
             SplitScreenInputBridgeTheme {

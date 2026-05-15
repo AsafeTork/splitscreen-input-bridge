@@ -14,6 +14,7 @@ import android.os.Looper
 import android.provider.Settings
 import android.util.Log
 import android.view.InputDevice
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
@@ -36,8 +37,22 @@ import com.splitscreen.inputbridge.util.ShizukuMonitor
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import rikka.shizuku.Shizuku
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 class MainActivity : ComponentActivity(), InputManager.InputDeviceListener {
+
+    // ===== NUCLEAR LOGGING =====
+    private fun tsLog(tag: String, msg: String) {
+        val ts = SimpleDateFormat("HH:mm:ss.SSS", Locale.US).format(Date())
+        Log.d("SHIZUKU_DEBUG", "[$ts] [$tag] $msg")
+    }
+
+    private fun visibleToast(msg: String) {
+        Toast.makeText(this, "InputBridge: $msg", Toast.LENGTH_LONG).show()
+        tsLog("TOAST", msg)
+    }
 
     private lateinit var inputManager: InputManager
     private var bridgeService: InputBridgeService? = null
@@ -86,52 +101,36 @@ class MainActivity : ComponentActivity(), InputManager.InputDeviceListener {
     private val shizukuListener = Shizuku.OnRequestPermissionResultListener { requestCode, grantResult ->
         if (requestCode == shizukuRequestCode) {
             val granted = grantResult == android.content.pm.PackageManager.PERMISSION_GRANTED
-            Log.d("MainActivity", "Shizuku permission request result: granted=$granted")
+            tsLog("PERMISSION_CALLBACK", "requestCode=$requestCode granted=$granted")
+            visibleToast(if (granted) "Permissão Shizuku CONCEDIDA!" else "Permissão Shizuku NEGADA")
             _uiState.value = _uiState.value.copy(shizukuGranted = granted)
             if (granted) {
-                Log.d("MainActivity", "Shizuku permission granted, binding service")
+                tsLog("BINDING", "Permission granted, binding service now")
                 bindBridgeService()
-                // Start continuous permission monitoring
                 startPermissionMonitoring()
-            } else {
-                Log.d("MainActivity", "Shizuku permission denied")
             }
         }
     }
 
+    // Held as class property to prevent GC
     private val shizukuPermissionChangeListener = Shizuku.OnBinderReceivedListener {
-        // Called when Shizuku binder becomes available or permission changes
-        Log.d("MainActivity", "Shizuku binder received, checking permission status")
-        handler.post {
-            checkShizukuPermission()
-        }
-    }
-
-    // Additional listener for permission changes
-    private val shizukuPermissionDeniedListener = Shizuku.OnRequestPermissionResultListener { requestCode, grantResult ->
-        if (requestCode == shizukuRequestCode) {
-            val granted = grantResult == android.content.pm.PackageManager.PERMISSION_GRANTED
-            Log.d("MainActivity", "Shizuku permission status changed: granted=$granted")
-            handler.post {
-                updateShizukuPermissionState(granted)
-            }
-        }
+        tsLog("BINDER", "Binder received event fired")
+        handler.post { checkShizukuPermission() }
     }
 
     private val shizukuBinderReceivedStickyListener = Shizuku.OnBinderReceivedListener {
-        Log.d("MainActivity", "Shizuku binder received (sticky)")
+        tsLog("BINDER_STICKY", "Sticky binder received event fired")
         val granted = Shizuku.checkSelfPermission() == android.content.pm.PackageManager.PERMISSION_GRANTED
-        Log.d("MainActivity", "Shizuku permission status: granted=$granted")
+        tsLog("BINDER_STICKY", "checkSelfPermission=$granted")
         updateShizukuPermissionState(granted)
     }
 
     private val shizukuBinderDeadListener = Shizuku.OnBinderDeadListener {
-        Log.d("MainActivity", "Shizuku binder died")
+        tsLog("BINDER_DEAD", "Binder died - shutting down")
+        visibleToast("Shizuku desconectado! Verifique o app Shizuku")
         _uiState.value = _uiState.value.copy(
-            shizukuAvailable = false,
-            shizukuGranted = false,
-            serviceConnected = false,
-            bridgeActive = false,
+            shizukuAvailable = false, shizukuGranted = false,
+            serviceConnected = false, bridgeActive = false,
             statusMessage = "Shizuku não disponível"
         )
         stopPermissionMonitoring()
@@ -171,7 +170,6 @@ class MainActivity : ComponentActivity(), InputManager.InputDeviceListener {
         }
 
         Shizuku.addRequestPermissionResultListener(shizukuListener)
-        Shizuku.addRequestPermissionResultListener(shizukuPermissionDeniedListener)
         Shizuku.addBinderReceivedListenerSticky(shizukuBinderReceivedStickyListener)
         Shizuku.addBinderReceivedListener(shizukuPermissionChangeListener)
         Shizuku.addBinderDeadListener(shizukuBinderDeadListener)
@@ -210,14 +208,16 @@ class MainActivity : ComponentActivity(), InputManager.InputDeviceListener {
     }
 
     private fun requestShizukuPermission() {
-        Log.d("MainActivity", "Requesting Shizuku permission")
+        tsLog("REQUEST", "Starting permission request flow")
         if (Shizuku.isPreV11() || Shizuku.getVersion() < 11) {
-            Log.w("MainActivity", "Shizuku version incompatible")
+            tsLog("REQUEST", "ERROR: Shizuku version incompatible - version=${Shizuku.getVersion()} isPreV11=${Shizuku.isPreV11()}")
+            visibleToast("Shizuku versão incompatível (necessário v11+)")
             _uiState.value = _uiState.value.copy(statusMessage = "Shizuku versão incompatível (necessário v11+)")
             return
         }
-        Log.d("MainActivity", "Calling Shizuku.requestPermission with requestCode: $shizukuRequestCode")
+        tsLog("REQUEST", "Calling Shizuku.requestPermission($shizukuRequestCode)")
         Shizuku.requestPermission(shizukuRequestCode)
+        visibleToast("Solicitando permissão Shizuku... Verifique o popup!")
     }
 
     private fun updateShizukuPermissionState(granted: Boolean) {
@@ -271,7 +271,7 @@ class MainActivity : ComponentActivity(), InputManager.InputDeviceListener {
             val isPermissionGranted = Shizuku.checkSelfPermission() == android.content.pm.PackageManager.PERMISSION_GRANTED
             val isAccessibilityEnabled = isAccessibilityServiceEnabled(this)
 
-            Log.d("MainActivity", "Checking Shizuku permission - binderAlive: $isBinderAlive, permissionGranted: $isPermissionGranted, accessibilityEnabled: $isAccessibilityEnabled")
+            tsLog("CHECK", "binderAlive=$isBinderAlive permissionGranted=$isPermissionGranted accessibilityEnabled=$isAccessibilityEnabled")
 
             // Update UI state if needed
             val currentState = _uiState.value
@@ -333,11 +333,14 @@ class MainActivity : ComponentActivity(), InputManager.InputDeviceListener {
     }
 
     private fun bindBridgeService() {
-        Log.d("MainActivity", "Attempting to bind bridge service")
+        tsLog("BINDING", "Attempting to bind InputBridgeService")
         val intent = Intent(this, InputBridgeService::class.java)
         startForegroundService(intent)
         val result = bindService(intent, serviceConnection, 0)
-        Log.d("MainActivity", "bindService result: $result")
+        tsLog("BINDING", "bindService result=$result (true=OK, false=FAIL)")
+        if (!result) {
+            visibleToast("Falha ao conectar serviço interno!")
+        }
     }
 
     private fun bindPlayer(player: Int, descriptor: String) {
@@ -447,7 +450,6 @@ class MainActivity : ComponentActivity(), InputManager.InputDeviceListener {
         super.onDestroy()
         inputManager.unregisterInputDeviceListener(this)
         Shizuku.removeRequestPermissionResultListener(shizukuListener)
-        Shizuku.removeRequestPermissionResultListener(shizukuPermissionDeniedListener)
         Shizuku.removeBinderReceivedListener(shizukuPermissionChangeListener)
         Shizuku.removeBinderReceivedListener(shizukuBinderReceivedStickyListener)
         Shizuku.removeBinderDeadListener(shizukuBinderDeadListener)

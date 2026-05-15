@@ -2,6 +2,7 @@
 package com.splitscreen.inputbridge
 
 import android.content.ComponentName
+import android.content.ContentResolver
 import android.content.Intent
 import android.content.ServiceConnection
 import android.hardware.input.InputManager
@@ -468,7 +469,6 @@ data class BridgeUiState(
     val needsAccessibilitySetup: Boolean = false, // Whether user needs to enable accessibility
     val needsShizukuSetup: Boolean = false, // Whether user needs to grant Shizuku permission
     val troubleshootingMessage: String = "" // Specific troubleshooting guidance
-)
 )
 
 @Composable

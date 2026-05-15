@@ -142,6 +142,85 @@ class ShizukuPermissionManager(private val context: Context) {
     }
 
     /**
+     * Performs an enhanced health check with recovery attempts
+     * This method tries multiple approaches to verify and recover Shizuku state
+     */
+    fun performEnhancedHealthCheck(): ShizukuHealthStatus {
+        return try {
+            val binderAlive = isShizukuBinderAlive()
+            var permissionGranted = isShizukuPermissionGranted()
+            var recoveryAttempted = false
+            var recoverySuccessful = false
+
+            // If binder is alive but permission is not granted, try recovery
+            if (binderAlive && !permissionGranted) {
+                Log.w(TAG, "Binder alive but permission not granted - attempting recovery")
+                recoveryAttempted = true
+
+                // Try force refresh permission state
+                try {
+                    // Force a binder refresh
+                    Shizuku.getBinder()
+
+                    // Wait a moment for state to settle
+                    Thread.sleep(100)
+
+                    // Check permission again
+                    permissionGranted = isShizukuPermissionGranted()
+
+                    if (permissionGranted) {
+                        recoverySuccessful = true
+                        Log.i(TAG, "Permission recovery successful")
+                    } else {
+                        Log.w(TAG, "Permission recovery unsuccessful")
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Permission recovery attempt failed: ${e.message}")
+                }
+            }
+
+            // Test execution capability if permission is granted
+            var shellExecutionWorking = false
+            if (permissionGranted) {
+                try {
+                    val testResult = ShizukuUserService.execShellCommand("echo test")
+                    shellExecutionWorking = (testResult.trim() == "test")
+                } catch (e: Exception) {
+                    Log.e(TAG, "Shell execution test failed: ${e.message}")
+                }
+            }
+
+            ShizukuHealthStatus(
+                binderAlive = binderAlive,
+                permissionGranted = permissionGranted,
+                shellExecutionWorking = shellExecutionWorking,
+                recoveryAttempted = recoveryAttempted,
+                recoverySuccessful = recoverySuccessful
+            )
+        } catch (e: Exception) {
+            Log.e(TAG, "Enhanced Shizuku health check failed: ${e.message}")
+            ShizukuHealthStatus(
+                binderAlive = false,
+                permissionGranted = false,
+                shellExecutionWorking = false,
+                recoveryAttempted = false,
+                recoverySuccessful = false
+            )
+        }
+    }
+
+    /**
+     * Data class to hold detailed Shizuku health status
+     */
+    data class ShizukuHealthStatus(
+        val binderAlive: Boolean,
+        val permissionGranted: Boolean,
+        val shellExecutionWorking: Boolean,
+        val recoveryAttempted: Boolean,
+        val recoverySuccessful: Boolean
+    )
+
+    /**
      * Performs a quick health check of Shizuku without shell execution test
      * Useful for frequent UI updates
      */

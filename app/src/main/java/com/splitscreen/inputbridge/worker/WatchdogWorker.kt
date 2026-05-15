@@ -98,6 +98,9 @@ class WatchdogWorker(
             }
 
             true
+        } catch (e: SecurityException) {
+            Log.e(TAG, "Shizuku security exception: ${e.message}")
+            false
         } catch (e: Exception) {
             Log.e(TAG, "Health check exception: ${e.message}")
             false

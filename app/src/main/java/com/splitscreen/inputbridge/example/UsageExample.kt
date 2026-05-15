@@ -1,9 +1,10 @@
 package com.splitscreen.inputbridge.example
 
 import android.content.Context
-import com.splitscreen.inputbridge.InputBridgeServiceEnhanced
+import com.splitscreen.inputbridge.InputBridgeService
 import com.splitscreen.inputbridge.config.AdvancedConfigManager
 import com.splitscreen.inputbridge.persistence.ProfilePersistenceManager
+import com.splitscreen.inputbridge.util.CoroutineManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -16,7 +17,7 @@ class UsageExample {
     /**
      * Exemplo 1: Configuração dinâmica de parâmetros
      */
-    fun configureRuntimeParameters(service: InputBridgeServiceEnhanced) {
+    fun configureRuntimeParameters(service: InputBridgeService) {
         val configManager = service.getConfigManager()
 
         // Atualiza a zona morta (deadzone) para 0.2
@@ -39,7 +40,7 @@ class UsageExample {
     /**
      * Exemplo 2: Gerenciamento de perfis
      */
-    fun manageProfiles(service: InputBridgeServiceEnhanced, context: Context) {
+    fun manageProfiles(service: InputBridgeService, context: Context) {
         val profileManager = service.getProfileManager()
 
         // Cria um novo perfil chamado "high_performance"
@@ -65,7 +66,7 @@ class UsageExample {
         )
 
         // Exporta todos os perfis para JSON
-        val exportScope = CoroutineScope(Dispatchers.IO)
+        val exportScope = CoroutineManager.createIOScope()
         exportScope.launch {
             val jsonExport = profileManager.exportProfilesToJson()
             // Salvar jsonExport em um arquivo ou enviar para nuvem
@@ -85,7 +86,7 @@ class UsageExample {
     /**
      * Exemplo 3: Monitoramento de métricas de performance
      */
-    fun monitorPerformance(service: InputBridgeServiceEnhanced) {
+    fun monitorPerformance(service: InputBridgeService) {
         val metrics = service.getPerformanceMetrics()
         val logger = service.getStructuredLogger()
 
@@ -113,7 +114,7 @@ class UsageExample {
     /**
      * Exemplo 4: Logging estruturado avançado
      */
-    fun advancedLogging(service: InputBridgeServiceEnhanced) {
+    fun advancedLogging(service: InputBridgeService) {
         val logger = service.getStructuredLogger()
 
         // Log de informações
@@ -154,7 +155,7 @@ class UsageExample {
     /**
      * Exemplo 5: Integração completa
      */
-    fun fullIntegrationExample(service: InputBridgeServiceEnhanced) {
+    fun fullIntegrationExample(service: InputBridgeService) {
         // 1. Configurar parâmetros dinâmicos
         configureRuntimeParameters(service)
 
@@ -169,7 +170,7 @@ class UsageExample {
 
         // 5. Responder a mudanças de configuração
         val configManager = service.getConfigManager()
-        val configScope = CoroutineScope(Dispatchers.Default)
+        val configScope = CoroutineManager.createStandardScope()
 
         configScope.launch {
             configManager.configState.collect { configState ->
@@ -187,7 +188,7 @@ class UsageExample {
     /**
      * Exemplo 6: Persistência e recuperação de estado
      */
-    fun statePersistenceExample(service: InputBridgeServiceEnhanced) {
+    fun statePersistenceExample(service: InputBridgeService) {
         val profileManager = service.getProfileManager()
         val configManager = service.getConfigManager()
 
@@ -200,7 +201,7 @@ class UsageExample {
         configManager.loadConfig()
 
         // Exportar para backup
-        val exportScope = CoroutineScope(Dispatchers.IO)
+        val exportScope = CoroutineManager.createIOScope()
         exportScope.launch {
             val backupJson = profileManager.exportProfilesToJson()
             // Salvar em arquivo ou nuvem

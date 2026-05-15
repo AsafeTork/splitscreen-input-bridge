@@ -237,9 +237,9 @@ val jsonExport = profilePersistenceManager.exportProfilesToJson()
 profilePersistenceManager.importProfilesFromJson(jsonString)
 ```
 
-## Integração no InputBridgeServiceEnhanced
+## Integração no InputBridgeService
 
-**Localização:** `app/src/main/java/com/splitscreen/inputbridge/InputBridgeServiceEnhanced.kt`
+**Localização:** `app/src/main/java/com/splitscreen/inputbridge/InputBridgeService.kt`
 
 ### Pontos de Integração
 
@@ -402,7 +402,7 @@ profilePersistenceManager.importProfilesFromJson(jsonString)
 
 ```kotlin
 // 1. Inicializar o serviço
-val service = InputBridgeServiceEnhanced()
+val service = InputBridgeService()
 service.onCreate()
 
 // 2. Configurar gamepads (automaticamente persistido no perfil)

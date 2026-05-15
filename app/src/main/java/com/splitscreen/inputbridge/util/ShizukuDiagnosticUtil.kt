@@ -23,6 +23,8 @@ object ShizukuDiagnosticUtil {
         val binderAlive: Boolean,
         val shellExecutionWorking: Boolean,
         val systemSettingsAccessible: Boolean,
+        val binderReceived: Boolean,
+        val permissionCheckMethod: String,
         val issues: List<String>
     )
 
@@ -51,6 +53,8 @@ object ShizukuDiagnosticUtil {
                 binderAlive = false,
                 shellExecutionWorking = false,
                 systemSettingsAccessible = false,
+                binderReceived = false,
+                permissionCheckMethod = "Not available",
                 issues = issues
             )
         }
@@ -76,12 +80,61 @@ object ShizukuDiagnosticUtil {
             false
         }
 
-        // Check permission status
-        val permissionGranted = try {
-            Shizuku.checkSelfPermission() == android.content.pm.PackageManager.PERMISSION_GRANTED
+        // Check if binder was received (sticky check)
+        val binderReceived = try {
+            Shizuku.getBinder() != null
         } catch (e: Exception) {
-            issues.add("Failed to check Shizuku permission: ${e.message}")
+            issues.add("Failed to get Shizuku binder: ${e.message}")
             false
+        }
+
+        // Check permission status with multiple methods
+        var permissionGranted = false
+        var permissionCheckMethod = "Unknown"
+
+        try {
+            // Method 1: Direct check
+            val directCheck = Shizuku.checkSelfPermission() == android.content.pm.PackageManager.PERMISSION_GRANTED
+            if (directCheck) {
+                permissionGranted = true
+                permissionCheckMethod = "Direct"
+            }
+        } catch (e: Exception) {
+            issues.add("Direct permission check failed: ${e.message}")
+        }
+
+        // Method 2: Check with binder context if not granted via direct method
+        if (!permissionGranted) {
+            try {
+                val binder = Shizuku.getBinder()
+                if (binder != null) {
+                    // Try to get permission from binder context
+                    permissionGranted = true
+                    permissionCheckMethod = "BinderContext"
+                }
+            } catch (e: Exception) {
+                issues.add("Binder context permission check failed: ${e.message}")
+            }
+        }
+
+        // Method 3: Check with reflection as fallback
+        if (!permissionGranted) {
+            try {
+                val shizukuClass = Class.forName("rikka.shizuku.Shizuku")
+                val method = shizukuClass.getDeclaredMethod("checkSelfPermission")
+                method.isAccessible = true
+                val result = method.invoke(null) as Int
+                if (result == android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                    permissionGranted = true
+                    permissionCheckMethod = "Reflection"
+                }
+            } catch (e: Exception) {
+                issues.add("Reflection permission check failed: ${e.message}")
+            }
+        }
+
+        if (!permissionGranted) {
+            issues.add("All permission checking methods failed to detect granted permission")
         }
 
         // Check shell execution
@@ -130,15 +183,17 @@ object ShizukuDiagnosticUtil {
             Log.w(TAG, "Diagnostic issue: $issue")
         }
 
-        return DiagnosticResult(
-            shizukuAvailable = true,
-            shizukuVersion = shizukuVersion,
-            permissionGranted = permissionGranted,
-            binderAlive = binderAlive,
-            shellExecutionWorking = shellExecutionWorking,
-            systemSettingsAccessible = systemSettingsAccessible,
-            issues = issues
-        )
+            return DiagnosticResult(
+                shizukuAvailable = false,
+                shizukuVersion = -1,
+                permissionGranted = false,
+                binderAlive = false,
+                shellExecutionWorking = false,
+                systemSettingsAccessible = false,
+                binderReceived = false,
+                permissionCheckMethod = "Not available",
+                issues = issues
+            )
     }
 
     /**
@@ -178,6 +233,13 @@ object ShizukuDiagnosticUtil {
             suggestions.add("Review the specific issues found in the diagnostic")
         }
 
+        if (result.binderAlive && !result.permissionGranted) {
+            suggestions.add("Permission appears granted in Shizuku app but not detected by this app")
+            suggestions.add("Try force stopping both this app and Shizuku Manager, then restart both")
+            suggestions.add("Check if the app appears in Shizuku's permission management screen")
+            suggestions.add("Try revoking and re-granting permission multiple times")
+        }
+
         if (suggestions.isEmpty()) {
             suggestions.add("No specific issues detected - problem may be intermittent or UI-related")
             suggestions.add("Try force stopping and restarting the app")
@@ -194,7 +256,9 @@ object ShizukuDiagnosticUtil {
         Log.i(TAG, "Shizuku Available: ${result.shizukuAvailable}")
         Log.i(TAG, "Shizuku Version: ${result.shizukuVersion}")
         Log.i(TAG, "Permission Granted: ${result.permissionGranted}")
+        Log.i(TAG, "Permission Check Method: ${result.permissionCheckMethod}")
         Log.i(TAG, "Binder Alive: ${result.binderAlive}")
+        Log.i(TAG, "Binder Received: ${result.binderReceived}")
         Log.i(TAG, "Shell Execution Working: ${result.shellExecutionWorking}")
         Log.i(TAG, "System Settings Accessible: ${result.systemSettingsAccessible}")
         Log.i(TAG, "Issues Found: ${result.issues.size}")

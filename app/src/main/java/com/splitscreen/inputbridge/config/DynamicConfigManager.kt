@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.SharedPreferences
 import androidx.annotation.WorkerThread
 import com.splitscreen.inputbridge.logging.StructuredLogger
+import com.splitscreen.inputbridge.util.CoroutineManager
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -36,7 +37,7 @@ class DynamicConfigManager(private val context: Context, private val logger: Str
     }
 
     // Coroutine scope
-    private val configScope = CoroutineScope(Dispatchers.Default)
+    private val configScope = CoroutineManager.createComputeScope()
 
     /**
      * Estado atual da configuração

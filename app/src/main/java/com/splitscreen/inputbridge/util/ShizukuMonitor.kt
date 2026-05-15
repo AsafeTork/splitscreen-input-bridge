@@ -12,7 +12,8 @@ import rikka.shizuku.Shizuku
  *
  * This utility provides more responsive monitoring of Shizuku status changes
  * with configurable check intervals and callback mechanisms for immediate
- * UI updates when permission status changes.
+ * UI updates when permission status changes. Includes automatic recovery
+ * capabilities for common Shizuku issues.
  */
 class ShizukuMonitor(private val context: Context) {
 
@@ -49,6 +50,10 @@ class ShizukuMonitor(private val context: Context) {
             checkShizukuStatus()
         }
     }
+
+    // Counter for failed permission checks to trigger recovery
+    private var failedPermissionChecks = 0
+    private val MAX_FAILED_CHECKS_BEFORE_RECOVERY = 3
 
     private val shizukuBinderDeadListener = Shizuku.OnBinderDeadListener {
         Log.d(TAG, "Shizuku binder died")
@@ -107,6 +112,22 @@ class ShizukuMonitor(private val context: Context) {
                 false
             }
 
+            // Track failed permission checks for recovery
+            if (isBinderAlive && !isPermissionGranted) {
+                failedPermissionChecks++
+                Log.d(TAG, "Permission check failed count: $failedPermissionChecks")
+
+                // If we've had multiple failed checks, try recovery
+                if (failedPermissionChecks >= MAX_FAILED_CHECKS_BEFORE_RECOVERY) {
+                    Log.w(TAG, "Multiple failed permission checks, attempting recovery")
+                    attemptRecovery()
+                    failedPermissionChecks = 0 // Reset counter after recovery attempt
+                }
+            } else if (isBinderAlive && isPermissionGranted) {
+                // Reset failed checks counter when everything is working
+                failedPermissionChecks = 0
+            }
+
             // Only notify if state has actually changed
             if (isBinderAlive != lastAvailableState || isPermissionGranted != lastPermissionState) {
                 Log.d(TAG, "Shizuku status changed - available: $isBinderAlive, permission: $isPermissionGranted")
@@ -122,6 +143,29 @@ class ShizukuMonitor(private val context: Context) {
                 lastPermissionState = false
                 notifyBinderDied()
             }
+        }
+    }
+
+    /**
+     * Attempts to recover Shizuku permission state when it appears to be stuck
+     */
+    private fun attemptRecovery() {
+        Log.d(TAG, "Attempting Shizuku permission recovery")
+
+        try {
+            // Method 1: Force refresh binder
+            Shizuku.getBinder()
+
+            // Method 2: Wait for state to settle
+            Thread.sleep(200)
+
+            // Method 3: Check status again
+            handler.postDelayed({
+                checkShizukuStatus()
+            }, 300)
+
+        } catch (e: Exception) {
+            Log.e(TAG, "Recovery attempt failed", e)
         }
     }
 

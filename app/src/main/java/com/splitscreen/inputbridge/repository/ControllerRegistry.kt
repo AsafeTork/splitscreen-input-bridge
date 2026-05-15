@@ -4,6 +4,7 @@ import android.content.Context
 import android.hardware.input.InputManager
 import android.view.InputDevice
 import android.util.Log
+import com.splitscreen.inputbridge.util.CoroutineManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -33,7 +34,7 @@ class ControllerRegistry(private val context: Context) : InputManager.InputDevic
     private val sharedPrefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
     // Coroutine scope for async operations
-    private val registryScope = CoroutineScope(Dispatchers.Default + SupervisorJob())
+    private val registryScope = CoroutineManager.createStandardScope()
 
     // StateFlow for reactive state management
     private val _controllersState = MutableStateFlow(ControllersState())

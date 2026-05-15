@@ -47,7 +47,17 @@ class ShizukuServiceRepository : ShizukuServiceInterface {
 
     override fun isReady(): Boolean {
         return try {
-            ShizukuUserService.isReady()
+            val isReady = ShizukuUserService.isReady()
+            if (!isReady) {
+                Log.w(TAG, "Shizuku service not ready")
+            }
+            isReady
+        } catch (e: SecurityException) {
+            Log.e(TAG, "SecurityException in isReady: ${e.message}")
+            false
+        } catch (e: IllegalStateException) {
+            Log.e(TAG, "IllegalStateException in isReady: ${e.message}")
+            false
         } catch (e: Exception) {
             Log.e(TAG, "isReady failed: ${e.message}")
             false

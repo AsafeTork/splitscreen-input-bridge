@@ -117,7 +117,7 @@ data class UserProfile(
 ## Integração no Serviço Aprimorado
 
 **Arquivo criado:**
-- `app/src/main/java/com/splitscreen/inputbridge/InputBridgeServiceEnhanced.kt`
+- `app/src/main/java/com/splitscreen/inputbridge/InputBridgeService.kt` (consolidado a partir do InputBridgeService)
 
 **Principais melhorias:**
 
@@ -265,7 +265,7 @@ id 'org.jetbrains.kotlin.parcelize'
 Para migrar para a nova arquitetura:
 
 1. **Atualizar dependências**: Adicionar WorkManager e Parcelize
-2. **Substituir serviço**: Trocar `InputBridgeService` por `InputBridgeServiceEnhanced`
+2. **Atualizar referências**: Atualizar referências para usar `InputBridgeService` (agora aprimorado)
 3. **Atualizar MainActivity**: Usar o novo serviço e seus métodos
 4. **Configurar sistemas**: Inicializar os novos gerenciadores
 
@@ -377,7 +377,7 @@ As melhorias implementadas transformam o InputBridgeService de um componente fun
 ## 5. Nova Implementação do Serviço
 
 **Arquivo criado:**
-- `app/src/main/java/com/splitscreen/inputbridge/InputBridgeServiceNew.kt`
+- `app/src/main/java/com/splitscreen/inputbridge/InputBridgeService.kt`
 
 **Melhorias implementadas:**
 - **Injeção de dependência**: Uso de interfaces em vez de implementações concretas
@@ -416,7 +416,7 @@ id 'org.jetbrains.kotlin.parcelize'
 Para migrar para a nova arquitetura:
 
 1. **Atualizar dependências**: Adicionar WorkManager e Parcelize
-2. **Substituir serviço**: Trocar `InputBridgeService` por `InputBridgeServiceNew`
+2. **Atualizar referências**: Atualizar referências para usar `InputBridgeService` (agora com arquitetura aprimorada)
 3. **Atualizar MainActivity**: Usar o novo serviço e seus métodos
 4. **Configurar WorkManager**: Inicializar no Application ou MainActivity
 

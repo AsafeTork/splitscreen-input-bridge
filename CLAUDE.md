@@ -60,8 +60,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | File | Purpose |
 |------|---------|
 | `InputBridgeService.kt` | Main foreground service (routing, watchdog, system hacks) |
-| `InputBridgeServiceEnhanced.kt` | Enhanced version with metrics/logging/config |
-| `InputBridgeServiceNew.kt` | New service with DI and improved architecture |
+| `InputBridgeService.kt` | Enhanced version with metrics/logging/config |
+| `InputBridgeService.kt` | *(Deprecated - consolidated into InputBridgeService.kt)* |
 | `ShizukuUserService.kt` | Shizuku bridge for privileged input injection |
 | `InputBridgeAccessibilityService.kt` | Global input event interceptor |
 
@@ -76,19 +76,38 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Windows**: `monitor_apk.ps1` - PowerShell monitoring script
 - **Linux/macOS**: `monitor_apk.sh` - Bash monitoring script
 - **Frequency**: Every 5 minutes
-- **Features**: Build verification, APK validation, notifications
+- **Features**: Build verification, APK validation, notifications, auto-fix
+
+### Auto-Fix System
+- **Windows**: `auto_fix_apk.ps1` - PowerShell auto-fix script
+- **Linux/macOS**: `auto_fix_apk.sh` - Bash auto-fix script
+- **Capabilities**: Dependency fixes, compilation fixes, memory fixes, installation fixes
+
+### Demo and Verification
+- **Windows**: `show_app_working.ps1`, `demo_app.ps1`
+- **Linux/macOS**: `show_app_working.sh`, `demo_app.sh`
+- **Features**: Build, install, start app, simulate interactions, show logs
 
 ### Usage
 ```bash
-# Start monitoring (Windows)
+# Start monitoring with auto-fix (Windows)
 .\monitor_apk.ps1
 
-# Start monitoring (Linux/macOS)  
+# Start monitoring with auto-fix (Linux/macOS)  
 chmod +x monitor_apk.sh
 ./monitor_apk.sh
+
+# Show app working completely (Windows)
+.\show_app_working.ps1
+
+# Show app working completely (Linux/macOS)
+chmod +x show_app_working.sh
+./show_app_working.sh
 ```
 
 ## Test Policy
 
 - No `./gradlew` or local compilation allowed per user instructions
 - CI/CD validation only via GitHub Actions (`gh run watch`)
+- Auto-fix system handles common build/installation issues automatically
+- Demo scripts verify app is actually working on connected devices

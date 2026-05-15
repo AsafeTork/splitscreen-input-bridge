@@ -203,8 +203,19 @@ object ShizukuUserService {
     fun isReady(): Boolean {
         return try {
             val binderAlive = Shizuku.pingBinder()
-            val permissionGranted = Shizuku.checkSelfPermission() == android.content.pm.PackageManager.PERMISSION_GRANTED
-            binderAlive && permissionGranted
+            val permissionGranted = isPermissionGranted()
+
+            if (!binderAlive) {
+                Log.w(TAG, "Shizuku binder is not alive")
+            }
+
+            if (!permissionGranted) {
+                Log.w(TAG, "Shizuku permission not granted")
+            }
+
+            val ready = binderAlive && permissionGranted
+            Log.d(TAG, "isReady check - binderAlive: $binderAlive, permissionGranted: $permissionGranted, ready: $ready")
+            ready
         } catch (e: SecurityException) {
             Log.e(TAG, "SecurityException in isReady: ${e.message}")
             false
@@ -213,6 +224,28 @@ object ShizukuUserService {
             false
         } catch (e: Exception) {
             Log.e(TAG, "Exception in isReady: ${e.message}")
+            false
+        }
+    }
+
+    /**
+     * Checks if Shizuku permission has been granted without checking binder status
+     * Useful for quick permission checks
+     */
+    fun isPermissionGranted(): Boolean {
+        return try {
+            val permission = Shizuku.checkSelfPermission()
+            val granted = permission == android.content.pm.PackageManager.PERMISSION_GRANTED
+            Log.d(TAG, "Permission check - code: $permission, granted: $granted")
+            granted
+        } catch (e: SecurityException) {
+            Log.e(TAG, "SecurityException checking permission: ${e.message}")
+            false
+        } catch (e: IllegalStateException) {
+            Log.e(TAG, "IllegalStateException checking permission: ${e.message}")
+            false
+        } catch (e: Exception) {
+            Log.e(TAG, "Exception checking permission: ${e.message}", e)
             false
         }
     }

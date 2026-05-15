@@ -6,7 +6,11 @@ import android.content.Intent
 import android.content.ServiceConnection
 import android.hardware.input.InputManager
 import android.os.Bundle
+import android.os.Handler
 import android.os.IBinder
+import android.os.Looper
+import android.provider.Settings
+import android.util.Log
 import android.view.InputDevice
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -24,7 +28,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.splitscreen.inputbridge.repository.ShizukuPermissionManager
 import com.splitscreen.inputbridge.ui.theme.SplitScreenInputBridgeTheme
+import com.splitscreen.inputbridge.util.ShizukuMonitor
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import rikka.shizuku.Shizuku
@@ -33,24 +39,42 @@ class MainActivity : ComponentActivity(), InputManager.InputDeviceListener {
 
     private lateinit var inputManager: InputManager
     private var bridgeService: InputBridgeService? = null
+    private lateinit var shizukuPermissionManager: ShizukuPermissionManager
+    private lateinit var shizukuMonitor: ShizukuMonitor
+    private val handler = Handler(Looper.getMainLooper())
+    private val permissionCheckRunnable = object : Runnable {
+        override fun run() {
+            checkShizukuPermission()
+            handler.postDelayed(this, 2000) // Check every 2 seconds for better responsiveness
+        }
+    }
 
     private val _uiState = MutableStateFlow(BridgeUiState())
     private val uiState: StateFlow<BridgeUiState> = _uiState
 
     private val serviceConnection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName?, binder: IBinder?) {
+            Log.d("MainActivity", "Service connected")
             bridgeService = (binder as? InputBridgeService.LocalBinder)?.getService()
-            bridgeService?.setStatusCallback { p1, p2, active ->
-                _uiState.value = _uiState.value.copy(
-                    player1Descriptor = p1,
-                    player2Descriptor = p2,
-                    bridgeActive = active
-                )
+            if (bridgeService != null) {
+                Log.d("MainActivity", "Bridge service obtained successfully")
+                bridgeService?.setStatusCallback { p1, p2, active ->
+                    Log.d("MainActivity", "Service status callback: p1=$p1, p2=$p2, active=$active")
+                    _uiState.value = _uiState.value.copy(
+                        player1Descriptor = p1,
+                        player2Descriptor = p2,
+                        bridgeActive = active
+                    )
+                }
+                _uiState.value = _uiState.value.copy(serviceConnected = true)
+                Log.d("MainActivity", "Service connected state updated")
+            } else {
+                Log.e("MainActivity", "Failed to obtain bridge service")
             }
-            _uiState.value = _uiState.value.copy(serviceConnected = true)
         }
 
         override fun onServiceDisconnected(name: ComponentName?) {
+            Log.d("MainActivity", "Service disconnected")
             bridgeService = null
             _uiState.value = _uiState.value.copy(serviceConnected = false, bridgeActive = false)
         }
@@ -60,8 +84,35 @@ class MainActivity : ComponentActivity(), InputManager.InputDeviceListener {
     private val shizukuListener = Shizuku.OnRequestPermissionResultListener { requestCode, grantResult ->
         if (requestCode == shizukuRequestCode) {
             val granted = grantResult == android.content.pm.PackageManager.PERMISSION_GRANTED
+            Log.d("MainActivity", "Shizuku permission request result: granted=$granted")
             _uiState.value = _uiState.value.copy(shizukuGranted = granted)
-            if (granted) bindBridgeService()
+            if (granted) {
+                Log.d("MainActivity", "Shizuku permission granted, binding service")
+                bindBridgeService()
+                // Start continuous permission monitoring
+                startPermissionMonitoring()
+            } else {
+                Log.d("MainActivity", "Shizuku permission denied")
+            }
+        }
+    }
+
+    private val shizukuPermissionChangeListener = Shizuku.OnBinderReceivedListener {
+        // Called when Shizuku binder becomes available or permission changes
+        Log.d("MainActivity", "Shizuku binder received, checking permission status")
+        handler.post {
+            checkShizukuPermission()
+        }
+    }
+
+    // Additional listener for permission changes
+    private val shizukuPermissionDeniedListener = Shizuku.OnRequestPermissionResultListener { requestCode, grantResult ->
+        if (requestCode == shizukuRequestCode) {
+            val granted = grantResult == android.content.pm.PackageManager.PERMISSION_GRANTED
+            Log.d("MainActivity", "Shizuku permission status changed: granted=$granted")
+            handler.post {
+                updateShizukuPermissionState(granted)
+            }
         }
     }
 
@@ -71,17 +122,53 @@ class MainActivity : ComponentActivity(), InputManager.InputDeviceListener {
         inputManager = getSystemService(InputManager::class.java)
         inputManager.registerInputDeviceListener(this, null)
 
-        Shizuku.addRequestPermissionResultListener(shizukuListener)
-        Shizuku.addBinderReceivedListenerSticky {
-            val granted = Shizuku.checkSelfPermission() == android.content.pm.PackageManager.PERMISSION_GRANTED
-            _uiState.value = _uiState.value.copy(
-                shizukuAvailable = true,
-                shizukuGranted = granted
-            )
-            if (granted) bindBridgeService()
+        // Initialize Shizuku permission manager and monitor
+        shizukuPermissionManager = ShizukuPermissionManager(this)
+        shizukuMonitor = ShizukuMonitor(this).apply {
+            addListener(object : ShizukuMonitor.ShizukuStatusListener {
+                override fun onShizukuStatusChanged(available: Boolean, permissionGranted: Boolean) {
+                    Log.d("MainActivity", "ShizukuMonitor status changed - available: $available, permission: $permissionGranted")
+                    updateShizukuPermissionState(permissionGranted)
+                }
+
+                override fun onShizukuBinderDied() {
+                    Log.d("MainActivity", "Shizuku binder died (from monitor)")
+                    _uiState.value = _uiState.value.copy(
+                        shizukuAvailable = false,
+                        shizukuGranted = false,
+                        serviceConnected = false,
+                        bridgeActive = false,
+                        statusMessage = "Shizuku não disponível"
+                    )
+                    // Stop permission monitoring when Shizuku dies
+                    stopPermissionMonitoring()
+                }
+            })
+            // More frequent checks when activity is in foreground
+            setCheckInterval(500) // 500ms for very responsive updates
+            startMonitoring()
         }
+
+        Shizuku.addRequestPermissionResultListener(shizukuListener)
+        Shizuku.addRequestPermissionResultListener(shizukuPermissionDeniedListener)
+        Shizuku.addBinderReceivedListenerSticky {
+            Log.d("MainActivity", "Shizuku binder received (sticky)")
+            val granted = Shizuku.checkSelfPermission() == android.content.pm.PackageManager.PERMISSION_GRANTED
+            Log.d("MainActivity", "Shizuku permission status: granted=$granted")
+            updateShizukuPermissionState(granted)
+        }
+        Shizuku.addBinderReceivedListener(shizukuPermissionChangeListener)
         Shizuku.addBinderDeadListener {
-            _uiState.value = _uiState.value.copy(shizukuAvailable = false, shizukuGranted = false)
+            Log.d("MainActivity", "Shizuku binder died")
+            _uiState.value = _uiState.value.copy(
+                shizukuAvailable = false,
+                shizukuGranted = false,
+                serviceConnected = false,
+                bridgeActive = false,
+                statusMessage = "Shizuku não disponível"
+            )
+            // Stop permission monitoring when Shizuku dies
+            stopPermissionMonitoring()
         }
 
         refreshGamepads()
@@ -95,13 +182,15 @@ class MainActivity : ComponentActivity(), InputManager.InputDeviceListener {
                     onBindPlayer1 = { descriptor -> bindPlayer(1, descriptor) },
                     onBindPlayer2 = { descriptor -> bindPlayer(2, descriptor) },
                     onToggleBridge = { toggleBridge() },
-                    onRefreshDevices = { refreshGamepads() }
+                    onRefreshDevices = { refreshGamepads() },
+                    onRunDiagnostics = { runShizukuDiagnostics() }
                 )
             }
         }
     }
 
     private fun refreshGamepads() {
+        Log.d("MainActivity", "Refreshing gamepads")
         val gamepads = InputDevice.getDeviceIds().toList()
             .mapNotNull { InputDevice.getDevice(it) }
             .filter { device ->
@@ -110,21 +199,139 @@ class MainActivity : ComponentActivity(), InputManager.InputDeviceListener {
             }
             .map { GamepadInfo(id = it.id, name = it.name, descriptor = it.descriptor) }
 
+        Log.d("MainActivity", "Found ${gamepads.size} gamepads")
         _uiState.value = _uiState.value.copy(availableGamepads = gamepads)
     }
 
     private fun requestShizukuPermission() {
+        Log.d("MainActivity", "Requesting Shizuku permission")
         if (Shizuku.isPreV11() || Shizuku.getVersion() < 11) {
+            Log.w("MainActivity", "Shizuku version incompatible")
             _uiState.value = _uiState.value.copy(statusMessage = "Shizuku versão incompatível (necessário v11+)")
             return
         }
+        Log.d("MainActivity", "Calling Shizuku.requestPermission with requestCode: $shizukuRequestCode")
         Shizuku.requestPermission(shizukuRequestCode)
     }
 
+    private fun updateShizukuPermissionState(granted: Boolean) {
+        Log.d("MainActivity", "Updating Shizuku permission state: granted=$granted")
+
+        // Update UI state with new permission status
+        val currentState = _uiState.value
+        var newState = currentState.copy(
+            shizukuAvailable = true,
+            shizukuGranted = granted
+        )
+
+        // If permission was granted and service is not connected, try to connect
+        if (granted && !currentState.serviceConnected) {
+            Log.d("MainActivity", "Shizuku permission granted, attempting to bind service")
+            bindBridgeService()
+            newState = newState.copy(
+                statusMessage = "Permissão concedida, conectando serviço..."
+            )
+        }
+
+        // If permission was revoked, update service connection state
+        if (!granted && currentState.serviceConnected) {
+            Log.d("MainActivity", "Shizuku permission revoked, updating service state")
+            newState = newState.copy(
+                serviceConnected = false,
+                bridgeActive = false,
+                statusMessage = "Permissão Shizuku revogada"
+            )
+        }
+
+        // Update state only if it has changed
+        if (newState != currentState) {
+            Log.d("MainActivity", "UI state changed, updating - old: shizukuAvailable=${currentState.shizukuAvailable}, shizukuGranted=${currentState.shizukuGranted}, serviceConnected=${currentState.serviceConnected}; new: shizukuAvailable=${newState.shizukuAvailable}, shizukuGranted=${newState.shizukuGranted}, serviceConnected=${newState.serviceConnected}")
+            _uiState.value = newState
+        } else {
+            Log.d("MainActivity", "UI state unchanged")
+        }
+
+        // Start or stop permission monitoring based on permission status
+        if (granted) {
+            startPermissionMonitoring()
+        } else {
+            stopPermissionMonitoring()
+        }
+    }
+
+    private fun checkShizukuPermission() {
+        try {
+            val isBinderAlive = Shizuku.pingBinder()
+            val isPermissionGranted = Shizuku.checkSelfPermission() == android.content.pm.PackageManager.PERMISSION_GRANTED
+            val isAccessibilityEnabled = isAccessibilityServiceEnabled()
+
+            Log.d("MainActivity", "Checking Shizuku permission - binderAlive: $isBinderAlive, permissionGranted: $isPermissionGranted, accessibilityEnabled: $isAccessibilityEnabled")
+
+            // Update UI state if needed
+            val currentState = _uiState.value
+            var newState = currentState.copy(
+                shizukuAvailable = isBinderAlive,
+                shizukuGranted = isPermissionGranted,
+                accessibilityServiceEnabled = isAccessibilityEnabled,
+                // Set troubleshooting flags
+                needsAccessibilitySetup = !isAccessibilityEnabled,
+                needsShizukuSetup = isBinderAlive && !isPermissionGranted,
+                // Set specific troubleshooting messages
+                troubleshootingMessage = when {
+                    !isBinderAlive -> "📱 Instale e inicie o app Shizuku"
+                    !isPermissionGranted -> "🔑 Conceda permissão ao Shizuku no app Shizuku"
+                    !isAccessibilityEnabled -> "⚙️ Habilite o serviço de acessibilidade nas Configurações > Acessibilidade"
+                    else -> ""
+                }
+            )
+
+            // If permission was revoked, update service connection state
+            if (!isPermissionGranted && currentState.serviceConnected) {
+                Log.d("MainActivity", "Shizuku permission revoked, updating service state")
+                newState = newState.copy(
+                    serviceConnected = false,
+                    bridgeActive = false,
+                    statusMessage = "Permissão Shizuku revogada"
+                )
+            }
+
+            // If permission was granted and service is not connected, try to connect
+            if (isPermissionGranted && !currentState.serviceConnected && isBinderAlive) {
+                Log.d("MainActivity", "Shizuku permission granted and service not connected, attempting to bind")
+                bindBridgeService()
+                newState = newState.copy(
+                    statusMessage = "Permissão concedida, conectando serviço..."
+                )
+            }
+
+            // Update state only if it has changed
+            if (newState != currentState) {
+                Log.d("MainActivity", "UI state changed, updating - old: shizukuAvailable=${currentState.shizukuAvailable}, shizukuGranted=${currentState.shizukuGranted}, serviceConnected=${currentState.serviceConnected}, accessibilityEnabled=${currentState.accessibilityServiceEnabled}; new: shizukuAvailable=${newState.shizukuAvailable}, shizukuGranted=${newState.shizukuGranted}, serviceConnected=${newState.serviceConnected}, accessibilityEnabled=${newState.accessibilityServiceEnabled}")
+                _uiState.value = newState
+            } else {
+                Log.d("MainActivity", "UI state unchanged")
+            }
+        } catch (e: Exception) {
+            Log.e("MainActivity", "Error checking Shizuku permission", e)
+        }
+    }
+
+    private fun startPermissionMonitoring() {
+        Log.d("MainActivity", "Starting permission monitoring")
+        handler.post(permissionCheckRunnable)
+    }
+
+    private fun stopPermissionMonitoring() {
+        Log.d("MainActivity", "Stopping permission monitoring")
+        handler.removeCallbacks(permissionCheckRunnable)
+    }
+
     private fun bindBridgeService() {
+        Log.d("MainActivity", "Attempting to bind bridge service")
         val intent = Intent(this, InputBridgeService::class.java)
         startForegroundService(intent)
-        bindService(intent, serviceConnection, 0)
+        val result = bindService(intent, serviceConnection, 0)
+        Log.d("MainActivity", "bindService result: $result")
     }
 
     private fun bindPlayer(player: Int, descriptor: String) {
@@ -147,14 +354,97 @@ class MainActivity : ComponentActivity(), InputManager.InputDeviceListener {
         _uiState.value = _uiState.value.copy(bridgeActive = !active)
     }
 
+    private fun runShizukuDiagnostics() {
+        Log.d("MainActivity", "Running Shizuku diagnostics")
+        Thread {
+            try {
+                val diagnosticResult = com.splitscreen.inputbridge.util.ShizukuDiagnosticUtil.performDiagnostic(this)
+                com.splitscreen.inputbridge.util.ShizukuDiagnosticUtil.logDiagnosticResults(diagnosticResult)
+
+                // Get troubleshooting suggestions
+                val suggestions = com.splitscreen.inputbridge.util.ShizukuDiagnosticUtil.getTroubleshootingSuggestions(diagnosticResult)
+
+                // Log suggestions
+                Log.i("MainActivity", "=== Troubleshooting Suggestions ===")
+                suggestions.forEach { suggestion ->
+                    Log.i("MainActivity", "Suggestion: $suggestion")
+                }
+                Log.i("MainActivity", "==================================")
+
+                // Update UI with diagnostic results
+                runOnUiThread {
+                    val issueCount = diagnosticResult.issues.size
+                    val message = if (issueCount == 0) {
+                        "Diagnóstico completo: Nenhum problema encontrado"
+                    } else {
+                        "Diagnóstico completo: $issueCount problemas encontrados"
+                    }
+
+                    // Create detailed status message
+                    val detailedMessage = buildString {
+                        append("Shizuku: ")
+                        append(if (diagnosticResult.shizukuAvailable) "Disponível" else "Não encontrado")
+                        append(" | Permissão: ")
+                        append(if (diagnosticResult.permissionGranted) "Concedida" else "Não concedida")
+                        append(" | Binder: ")
+                        append(if (diagnosticResult.binderAlive) "Ativo" else "Inativo")
+
+                        if (diagnosticResult.binderAlive && !diagnosticResult.permissionGranted) {
+                            append("\nPermissão pode estar dessincronizada - tente reiniciar os apps")
+                        }
+
+                        if (issueCount > 0) {
+                            append("\nIssues: $issueCount")
+                        }
+                    }
+
+                    _uiState.value = _uiState.value.copy(
+                        statusMessage = message,
+                        detailedStatus = detailedMessage
+                    )
+                }
+            } catch (e: Exception) {
+                Log.e("MainActivity", "Error running diagnostics", e)
+                runOnUiThread {
+                    _uiState.value = _uiState.value.copy(
+                        statusMessage = "Erro no diagnóstico: ${e.message}",
+                        detailedStatus = "Falha no diagnóstico - veja logs para detalhes"
+                    )
+                }
+            }
+        }.start()
+    }
+
+    private fun runOnUiThread(action: () -> Unit) {
+        if (Thread.currentThread() == Looper.getMainLooper().thread) {
+            action()
+        } else {
+            handler.post { action() }
+        }
+    }
+
     override fun onInputDeviceAdded(deviceId: Int) = refreshGamepads()
     override fun onInputDeviceRemoved(deviceId: Int) = refreshGamepads()
     override fun onInputDeviceChanged(deviceId: Int) = refreshGamepads()
+
+    override fun onResume() {
+        super.onResume()
+        // Check Shizuku permission immediately when activity resumes
+        handler.post {
+            checkShizukuPermission()
+            // Also force a check with the monitor
+            shizukuMonitor.forceCheckStatus()
+        }
+    }
 
     override fun onDestroy() {
         super.onDestroy()
         inputManager.unregisterInputDeviceListener(this)
         Shizuku.removeRequestPermissionResultListener(shizukuListener)
+        Shizuku.removeRequestPermissionResultListener(shizukuPermissionDeniedListener)
+        Shizuku.removeBinderReceivedListener(shizukuPermissionChangeListener)
+        stopPermissionMonitoring()
+        shizukuMonitor.stopMonitoring()
         try {
             unbindService(serviceConnection)
         } catch (_: Exception) {}
@@ -171,7 +461,14 @@ data class BridgeUiState(
     val availableGamepads: List<GamepadInfo> = emptyList(),
     val player1Descriptor: String = "",
     val player2Descriptor: String = "",
-    val statusMessage: String = ""
+    val statusMessage: String = "",
+    val diagnosticMode: Boolean = false,
+    val detailedStatus: String = "", // For showing more detailed diagnostic information
+    val accessibilityServiceEnabled: Boolean = false, // Track accessibility service status
+    val needsAccessibilitySetup: Boolean = false, // Whether user needs to enable accessibility
+    val needsShizukuSetup: Boolean = false, // Whether user needs to grant Shizuku permission
+    val troubleshootingMessage: String = "" // Specific troubleshooting guidance
+)
 )
 
 @Composable
@@ -181,7 +478,8 @@ fun BridgeScreen(
     onBindPlayer1: (String) -> Unit,
     onBindPlayer2: (String) -> Unit,
     onToggleBridge: () -> Unit,
-    onRefreshDevices: () -> Unit
+    onRefreshDevices: () -> Unit,
+    onRunDiagnostics: () -> Unit
 ) {
     Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         Column(
@@ -199,7 +497,7 @@ fun BridgeScreen(
                 modifier = Modifier.fillMaxWidth()
             )
 
-            StatusCard(state = state, onRequestShizuku = onRequestShizuku)
+            StatusCard(state = state, onRequestShizuku = onRequestShizuku, onRunDiagnostics = onRunDiagnostics)
 
             GamepadBindingCard(
                 title = "Player 1 (Nativo)",
@@ -228,7 +526,7 @@ fun BridgeScreen(
 }
 
 @Composable
-fun StatusCard(state: BridgeUiState, onRequestShizuku: () -> Unit) {
+fun StatusCard(state: BridgeUiState, onRequestShizuku: () -> Unit, onRunDiagnostics: () -> Unit) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(12.dp),
@@ -241,6 +539,16 @@ fun StatusCard(state: BridgeUiState, onRequestShizuku: () -> Unit) {
             StatusRow(label = "Permissão", ok = state.shizukuGranted, text = if (state.shizukuGranted) "Concedida" else "Pendente")
             StatusRow(label = "Serviço", ok = state.serviceConnected, text = if (state.serviceConnected) "Conectado" else "Desconectado")
 
+            // Show detailed status message if available
+            if (state.detailedStatus.isNotEmpty()) {
+                Text(
+                    text = state.detailedStatus,
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 4.dp)
+                )
+            }
+
             if (!state.shizukuGranted && state.shizukuAvailable) {
                 Button(
                     onClick = onRequestShizuku,
@@ -248,6 +556,27 @@ fun StatusCard(state: BridgeUiState, onRequestShizuku: () -> Unit) {
                 ) {
                     Text("Conceder Permissão Shizuku")
                 }
+            }
+
+            // Diagnostic button for troubleshooting
+            Button(
+                onClick = onRunDiagnostics,
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.secondary
+                )
+            ) {
+                Text("Diagnosticar Shizuku")
+            }
+
+            // Additional troubleshooting tips
+            if (state.shizukuAvailable && !state.shizukuGranted) {
+                Text(
+                    text = "Dica: Se a permissão foi concedida mas não é detectada, tente forçar a parada de ambos os apps e reiniciar.",
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 8.dp)
+                )
             }
         }
     }
@@ -408,3 +737,37 @@ fun BridgeControlCard(state: BridgeUiState, onToggle: () -> Unit) {
         }
     }
 }
+
+    private fun isAccessibilityServiceEnabled(): Boolean {
+        val expectedComponentName = ComponentName(this, InputBridgeAccessibilityService::class.java)
+        val enabledServicesSetting = Settings.Secure.getString(
+            contentResolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
+        ) ?: return false
+
+        val colonSplitter = android.text.TextUtils.SimpleStringSplitter(':')
+        colonSplitter.setString(enabledServicesSetting)
+        while (colonSplitter.hasNext()) {
+            val componentNameString = colonSplitter.next()
+            val enabledService = ComponentName.unflattenFromString(componentNameString)
+            if (enabledService != null && enabledService == expectedComponentName) {
+                return true
+            }
+        }
+        return false
+    }
+
+    private fun openAccessibilitySettings() {
+        try {
+            val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
+            startActivity(intent)
+        } catch (e: Exception) {
+            Log.e("MainActivity", "Error opening accessibility settings", e)
+            // Fallback to main settings
+            try {
+                val intent = Intent(Settings.ACTION_SETTINGS)
+                startActivity(intent)
+            } catch (e2: Exception) {
+                Log.e("MainActivity", "Error opening main settings", e2)
+            }
+        }
+    }

@@ -5,6 +5,7 @@ import android.content.SharedPreferences
 import android.os.Build
 import androidx.annotation.WorkerThread
 import com.splitscreen.inputbridge.logging.StructuredLogger
+import com.splitscreen.inputbridge.util.CoroutineManager
 import kotlinx.coroutines.*
 import org.json.JSONArray
 import org.json.JSONObject
@@ -31,7 +32,7 @@ class ProfilePersistenceManager(private val context: Context, private val logger
     }
 
     // Coroutine scope
-    private val persistenceScope = CoroutineScope(Dispatchers.Default)
+    private val persistenceScope = CoroutineManager.createComputeScope()
 
     // Estado de carregamento
     private val isLoading = AtomicBoolean(false)

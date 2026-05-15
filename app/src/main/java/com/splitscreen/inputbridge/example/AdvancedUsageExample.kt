@@ -1,11 +1,12 @@
 package com.splitscreen.inputbridge.example
 
 import android.content.Context
-import com.splitscreen.inputbridge.InputBridgeServiceEnhanced
+import com.splitscreen.inputbridge.InputBridgeService
 import com.splitscreen.inputbridge.config.AdvancedConfigManager
 import com.splitscreen.inputbridge.metrics.PerformanceMetrics
 import com.splitscreen.inputbridge.metrics.SystemMetricsCollector
 import com.splitscreen.inputbridge.persistence.ProfilePersistenceManager
+import com.splitscreen.inputbridge.util.CoroutineManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -21,7 +22,7 @@ class AdvancedUsageExample {
     /**
      * Exemplo 1: Monitoramento completo de performance com métricas de sistema
      */
-    fun monitorCompletePerformance(service: InputBridgeServiceEnhanced) {
+    fun monitorCompletePerformance(service: InputBridgeService) {
         val metrics = service.getPerformanceMetrics()
         val logger = service.getStructuredLogger()
 
@@ -62,7 +63,7 @@ class AdvancedUsageExample {
     /**
      * Exemplo 2: Logging para arquivo com rotação automática
      */
-    fun fileLoggingExample(service: InputBridgeServiceEnhanced, context: Context) {
+    fun fileLoggingExample(service: InputBridgeService, context: Context) {
         val logger = service.getStructuredLogger()
 
         // Obtém o caminho do arquivo de log atual
@@ -98,7 +99,7 @@ class AdvancedUsageExample {
     /**
      * Exemplo 3: Configurações avançadas com modos de performance
      */
-    fun advancedConfigExample(service: InputBridgeServiceEnhanced) {
+    fun advancedConfigExample(service: InputBridgeService) {
         val configManager = service.getConfigManager()
 
         // Ativa o modo de economia de bateria
@@ -111,7 +112,7 @@ class AdvancedUsageExample {
         configManager.updateConfig("enable_prediction" to false) // Desativa previsão
 
         // Monitora mudanças de configuração
-        val configScope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Default)
+        val configScope = CoroutineManager.createStandardScope()
         configScope.launch {
             configManager.configState.collect { configState ->
                 println("Config updated - Battery Saver: ${configState.batterySaverMode}, " +
@@ -150,7 +151,7 @@ class AdvancedUsageExample {
     /**
      * Exemplo 4: Gerenciamento avançado de perfis com backup automático
      */
-    fun advancedProfileManagement(service: InputBridgeServiceEnhanced) {
+    fun advancedProfileManagement(service: InputBridgeService) {
         val profileManager = service.getProfileManager()
 
         // Cria perfis especializados
@@ -184,7 +185,7 @@ class AdvancedUsageExample {
         profileManager.createAutomaticBackup()
 
         // Exporta perfis com metadados
-        val exportScope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO)
+        val exportScope = CoroutineManager.createIOScope()
         exportScope.launch {
             val jsonExport = profileManager.exportProfilesToJson(includeMetadata = true)
             println("Profiles export with metadata:\n$jsonExport")
@@ -203,7 +204,7 @@ class AdvancedUsageExample {
     /**
      * Exemplo 5: Integração completa com métricas de sistema e logging
      */
-    fun completeIntegrationExample(service: InputBridgeServiceEnhanced, context: Context) {
+    fun completeIntegrationExample(service: InputBridgeService, context: Context) {
         // 1. Monitoramento completo de performance
         monitorCompletePerformance(service)
 
@@ -218,7 +219,7 @@ class AdvancedUsageExample {
 
         // 5. Coleta periódica de métricas de sistema
         val metrics = service.getPerformanceMetrics()
-        val metricsScope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Default)
+        val metricsScope = CoroutineManager.createStandardScope()
         metricsScope.launch {
             while (true) {
                 metrics.collectSystemMetrics()
@@ -238,13 +239,13 @@ class AdvancedUsageExample {
     /**
      * Exemplo 6: Análise de performance em tempo real
      */
-    fun realtimePerformanceAnalysis(service: InputBridgeServiceEnhanced) {
+    fun realtimePerformanceAnalysis(service: InputBridgeService) {
         val metrics = service.getPerformanceMetrics()
         val logger = service.getStructuredLogger()
         val configManager = service.getConfigManager()
 
         // Monitora métricas em tempo real e ajusta configurações automaticamente
-        val analysisScope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Default)
+        val analysisScope = CoroutineManager.createStandardScope()
         analysisScope.launch {
             while (true) {
                 // Coleta métricas
@@ -327,7 +328,7 @@ class AdvancedUsageExample {
     /**
      * Exemplo 7: Diagnóstico completo do sistema
      */
-    fun systemDiagnostics(service: InputBridgeServiceEnhanced, context: Context) {
+    fun systemDiagnostics(service: InputBridgeService, context: Context) {
         val metrics = service.getPerformanceMetrics()
         val logger = service.getStructuredLogger()
         val profileManager = service.getProfileManager()

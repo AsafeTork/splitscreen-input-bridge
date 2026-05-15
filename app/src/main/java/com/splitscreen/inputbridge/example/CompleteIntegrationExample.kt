@@ -1,11 +1,12 @@
 package com.splitscreen.inputbridge.example
 
 import android.content.Context
-import com.splitscreen.inputbridge.InputBridgeServiceEnhanced
+import com.splitscreen.inputbridge.InputBridgeService
 import com.splitscreen.inputbridge.config.AdvancedConfigManager
 import com.splitscreen.inputbridge.logging.EnhancedStructuredLogger
 import com.splitscreen.inputbridge.metrics.PerformanceMetrics
 import com.splitscreen.inputbridge.persistence.ProfilePersistenceManager
+import com.splitscreen.inputbridge.util.CoroutineManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.launchIn
@@ -25,7 +26,7 @@ class CompleteIntegrationExample {
     /**
      * Demonstração completa de todas as funcionalidades integradas
      */
-    fun demonstrateCompleteIntegration(service: InputBridgeServiceEnhanced, context: Context) {
+    fun demonstrateCompleteIntegration(service: InputBridgeService, context: Context) {
         println("=== Iniciando Demonstração Completa ===")
 
         // 1. Configurar observadores de métricas
@@ -55,12 +56,12 @@ class CompleteIntegrationExample {
     /**
      * Configura monitoramento contínuo de métricas
      */
-    private fun setupMetricsMonitoring(service: InputBridgeServiceEnhanced) {
+    private fun setupMetricsMonitoring(service: InputBridgeService) {
         val metrics = service.getPerformanceMetrics()
         val logger = service.getStructuredLogger()
 
         // Loga métricas periodicamente
-        val monitoringScope = CoroutineScope(Dispatchers.Default)
+        val monitoringScope = CoroutineManager.createStandardScope()
         monitoringScope.launch {
             while (true) {
                 try {
@@ -92,9 +93,7 @@ class CompleteIntegrationExample {
                     }
 
                     // Aguarda 5 segundos antes da próxima verificação
-                    Thread.sleep(5000)
-                } catch (e: InterruptedException) {
-                    break
+                    kotlinx.coroutines.delay(5000)
                 } catch (e: Exception) {
                     logger.error("Metrics monitoring failed", "monitoring_error", null, e)
                 }
@@ -105,7 +104,7 @@ class CompleteIntegrationExample {
     /**
      * Configura monitoramento de mudanças de configuração
      */
-    private fun setupConfigMonitoring(service: InputBridgeServiceEnhanced) {
+    private fun setupConfigMonitoring(service: InputBridgeService) {
         val configManager = service.getConfigManager()
         val logger = service.getStructuredLogger()
 
@@ -133,7 +132,7 @@ class CompleteIntegrationExample {
     /**
      * Configura monitoramento de mudanças de perfis
      */
-    private fun setupProfileMonitoring(service: InputBridgeServiceEnhanced) {
+    private fun setupProfileMonitoring(service: InputBridgeService) {
         val profileManager = service.getProfileManager()
         val logger = service.getStructuredLogger()
 
@@ -174,7 +173,7 @@ class CompleteIntegrationExample {
     /**
      * Aplica configurações específicas do perfil
      */
-    private fun applyProfileSpecificSettings(service: InputBridgeServiceEnhanced, profile: ProfilePersistenceManager.UserProfile) {
+    private fun applyProfileSpecificSettings(service: InputBridgeService, profile: ProfilePersistenceManager.UserProfile) {
         val configManager = service.getConfigManager()
         val logger = service.getStructuredLogger()
 
@@ -205,7 +204,7 @@ class CompleteIntegrationExample {
     /**
      * Demonstra configuração dinâmica em tempo real
      */
-    private fun demonstrateDynamicConfiguration(service: InputBridgeServiceEnhanced) {
+    private fun demonstrateDynamicConfiguration(service: InputBridgeService) {
         val configManager = service.getConfigManager()
         val logger = service.getStructuredLogger()
 
@@ -252,7 +251,7 @@ class CompleteIntegrationExample {
     /**
      * Demonstra gerenciamento avançado de perfis
      */
-    private fun demonstrateProfileManagement(service: InputBridgeServiceEnhanced) {
+    private fun demonstrateProfileManagement(service: InputBridgeService) {
         val profileManager = service.getProfileManager()
         val logger = service.getStructuredLogger()
 
@@ -335,7 +334,7 @@ class CompleteIntegrationExample {
     /**
      * Demonstra logging estruturado avançado
      */
-    private fun demonstrateAdvancedLogging(service: InputBridgeServiceEnhanced) {
+    private fun demonstrateAdvancedLogging(service: InputBridgeService) {
         val logger = service.getStructuredLogger()
 
         println("\n=== Demonstrando Logging Avançado ===")
@@ -413,7 +412,7 @@ class CompleteIntegrationExample {
     /**
      * Demonstra monitoramento de performance em tempo real
      */
-    private fun demonstratePerformanceMonitoring(service: InputBridgeServiceEnhanced) {
+    private fun demonstratePerformanceMonitoring(service: InputBridgeService) {
         val metrics = service.getPerformanceMetrics()
         val logger = service.getStructuredLogger()
 
@@ -507,7 +506,7 @@ class CompleteIntegrationExample {
     /**
      * Demonstração de cenário completo de jogo
      */
-    fun demonstrateGameScenario(service: InputBridgeServiceEnhanced) {
+    fun demonstrateGameScenario(service: InputBridgeService) {
         val logger = service.getStructuredLogger()
         val metrics = service.getPerformanceMetrics()
         val configManager = service.getConfigManager()
@@ -603,7 +602,7 @@ class CompleteIntegrationExample {
     /**
      * Demonstração de recuperação de falhas
      */
-    fun demonstrateFailureRecovery(service: InputBridgeServiceEnhanced) {
+    fun demonstrateFailureRecovery(service: InputBridgeService) {
         val logger = service.getStructuredLogger()
         val metrics = service.getPerformanceMetrics()
         val configManager = service.getConfigManager()
@@ -654,7 +653,7 @@ class CompleteIntegrationExample {
     /**
      * Demonstração de otimização de performance
      */
-    fun demonstratePerformanceOptimization(service: InputBridgeServiceEnhanced) {
+    fun demonstratePerformanceOptimization(service: InputBridgeService) {
         val logger = service.getStructuredLogger()
         val metrics = service.getPerformanceMetrics()
         val configManager = service.getConfigManager()

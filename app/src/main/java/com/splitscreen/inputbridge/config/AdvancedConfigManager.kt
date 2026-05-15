@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.SharedPreferences
 import androidx.annotation.WorkerThread
 import com.splitscreen.inputbridge.logging.EnhancedStructuredLogger
+import com.splitscreen.inputbridge.util.CoroutineManager
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -35,7 +36,7 @@ class AdvancedConfigManager(private val context: Context, private val logger: En
     }
 
     // Coroutine scope
-    private val configScope = CoroutineScope(Dispatchers.Default)
+    private val configScope = CoroutineManager.createComputeScope()
 
     // Estado de otimização automática
     private val autoOptimizationEnabled = AtomicBoolean(false)

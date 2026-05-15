@@ -1,6 +1,7 @@
 @file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 package com.splitscreen.inputbridge
 
+import android.app.ForegroundServiceStartNotAllowedException
 import android.content.ComponentName
 import android.content.ContentResolver
 import android.content.Context
@@ -31,12 +32,15 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.lifecycleScope
 import com.splitscreen.inputbridge.repository.ShizukuPermissionManager
 import com.splitscreen.inputbridge.ui.theme.SplitScreenInputBridgeTheme
 import com.splitscreen.inputbridge.util.ShizukuDiagnosticUtil
 import com.splitscreen.inputbridge.util.ShizukuMonitor
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.launch
 import rikka.shizuku.Shizuku
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -158,10 +162,13 @@ class MainActivity : ComponentActivity(), InputManager.InputDeviceListener {
             Log.e("CRASH_DEBUG", "ShizukuPermissionManager init failed: ${e.message}", e)
         }
 
-        // Defer Shizuku listener registration to avoid crash during init
-        handler.postDelayed({
+        // Defer ALL heavy init via coroutine with delay for UI stability
+        lifecycleScope.launch {
             try {
-                shizukuMonitor = ShizukuMonitor(this).apply {
+                delay(1500) // Let UI fully render before stressing the system
+                tsLog("RESILIENCE", "UI stable, starting deferred init")
+
+                shizukuMonitor = ShizukuMonitor(this@MainActivity).apply {
                     addListener(object : ShizukuMonitor.ShizukuStatusListener {
                         override fun onShizukuStatusChanged(available: Boolean, permissionGranted: Boolean) {
                             try {
@@ -186,15 +193,18 @@ class MainActivity : ComponentActivity(), InputManager.InputDeviceListener {
                     setCheckInterval(500)
                     if (safeBinderAlive()) startMonitoring()
                 }
-            } catch (e: Exception) {
-                Log.e("CRASH_DEBUG", "ShizukuMonitor init failed: ${e.message}", e)
-            }
 
-            try { Shizuku.addRequestPermissionResultListener(shizukuListener) } catch (e: Exception) { Log.e("CRASH_DEBUG", "addRequestPermissionResultListener failed: ${e.message}", e) }
-            try { Shizuku.addBinderReceivedListenerSticky(shizukuBinderReceivedStickyListener) } catch (e: Exception) { Log.e("CRASH_DEBUG", "addBinderReceivedSticky failed: ${e.message}", e) }
-            try { Shizuku.addBinderReceivedListener(shizukuPermissionChangeListener) } catch (e: Exception) { Log.e("CRASH_DEBUG", "addBinderReceivedListener failed: ${e.message}", e) }
-            try { Shizuku.addBinderDeadListener(shizukuBinderDeadListener) } catch (e: Exception) { Log.e("CRASH_DEBUG", "addBinderDeadListener failed: ${e.message}", e) }
-        }, 500)
+                try { Shizuku.addRequestPermissionResultListener(shizukuListener) } catch (e: Exception) { Log.e("CRASH_DEBUG", "addRequestPermissionResultListener failed: ${e.message}", e) }
+                try { Shizuku.addBinderReceivedListenerSticky(shizukuBinderReceivedStickyListener) } catch (e: Exception) { Log.e("CRASH_DEBUG", "addBinderReceivedSticky failed: ${e.message}", e) }
+                try { Shizuku.addBinderReceivedListener(shizukuPermissionChangeListener) } catch (e: Exception) { Log.e("CRASH_DEBUG", "addBinderReceivedListener failed: ${e.message}", e) }
+                try { Shizuku.addBinderDeadListener(shizukuBinderDeadListener) } catch (e: Exception) { Log.e("CRASH_DEBUG", "addBinderDeadListener failed: ${e.message}", e) }
+
+                tsLog("RESILIENCE", "Deferred init complete")
+            } catch (e: Exception) {
+                Log.e("CRASH_DEBUG", "Deferred init failed: ${e.message}", e)
+                visibleToast("Erro na inicialização: ${e.message}")
+            }
+        }
 
         try {
             refreshGamepads()
@@ -361,11 +371,25 @@ class MainActivity : ComponentActivity(), InputManager.InputDeviceListener {
     private fun bindBridgeService() {
         tsLog("BINDING", "Attempting to bind InputBridgeService")
         val intent = Intent(this, InputBridgeService::class.java)
-        startForegroundService(intent)
-        val result = bindService(intent, serviceConnection, 0)
-        tsLog("BINDING", "bindService result=$result (true=OK, false=FAIL)")
-        if (!result) {
-            visibleToast("Falha ao conectar serviço interno!")
+        try {
+            startForegroundService(intent)
+        } catch (e: ForegroundServiceStartNotAllowedException) {
+            Log.e("CRASH_DEBUG", "ForegroundServiceStartNotAllowed: ${e.message}", e)
+            visibleToast("Erro ao iniciar serviço: Tente manualmente")
+            return
+        } catch (e: Exception) {
+            Log.e("CRASH_DEBUG", "startForegroundService failed: ${e.message}", e)
+            visibleToast("Erro ao iniciar serviço")
+            return
+        }
+        try {
+            val result = bindService(intent, serviceConnection, 0)
+            tsLog("BINDING", "bindService result=$result (true=OK, false=FAIL)")
+            if (!result) {
+                visibleToast("Falha ao conectar serviço interno!")
+            }
+        } catch (e: Exception) {
+            Log.e("CRASH_DEBUG", "bindService failed: ${e.message}", e)
         }
     }
 
@@ -455,12 +479,27 @@ class MainActivity : ComponentActivity(), InputManager.InputDeviceListener {
 
     override fun onResume() {
         super.onResume()
-        // Check Shizuku permission immediately when activity resumes
+        Log.d("LIFECYCLE", "[BOOT_TRACE] onResume called")
         handler.post {
-            checkShizukuPermission()
-            // Also force a check with the monitor
-            shizukuMonitor.forceCheckStatus()
+            try {
+                checkShizukuPermission()
+                if (::shizukuMonitor.isInitialized) {
+                    shizukuMonitor.forceCheckStatus()
+                }
+            } catch (e: Exception) {
+                Log.e("CRASH_DEBUG", "onResume check failed: ${e.message}", e)
+            }
         }
+    }
+
+    override fun onPause() {
+        super.onPause()
+        Log.d("LIFECYCLE", "[BOOT_TRACE] onPause called — app may be going to background")
+    }
+
+    override fun onStop() {
+        super.onStop()
+        Log.d("LIFECYCLE", "[BOOT_TRACE] onStop called")
     }
 
     override fun onDestroy() {

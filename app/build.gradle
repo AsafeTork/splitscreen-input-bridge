@@ -4,6 +4,11 @@ plugins {
     id 'org.jetbrains.kotlin.plugin.parcelize'
 }
 
+// Repositório Maven do Shizuku
+repositories {
+    maven { url 'https://maven.rikka.app' }
+}
+
 android {
     namespace 'com.splitscreen.inputbridge'
     compileSdk 34
@@ -59,9 +64,9 @@ dependencies {
     implementation 'androidx.compose.ui:ui-tooling-preview'
     implementation 'androidx.compose.material3:material3'
 
-    // Shizuku
-    implementation 'dev.rikka.shizuku:api:13.1.5'
-    implementation 'dev.rikka.shizuku:provider:13.1.5'
+    // Shizuku (versão mais recente disponível no repositório)
+    implementation 'dev.rikka.shizuku:api:13.6.0'
+    implementation 'dev.rikka.shizuku:provider:13.6.0'
 
     // Hidden API Bypass
     implementation 'org.lsposed.hiddenapibypass:hiddenapibypass:4.3'

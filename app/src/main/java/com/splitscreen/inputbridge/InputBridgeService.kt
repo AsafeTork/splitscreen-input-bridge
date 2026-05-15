@@ -108,43 +108,54 @@ class InputBridgeService : Service(), InputManager.InputDeviceListener {
 
     override fun onCreate() {
         super.onCreate()
-        Log.d(TAG, "Service creating with enhanced architecture")
+        try {
+            Log.d(TAG, "[BOOT_TRACE] Passo 1: Service creating")
+            stateManager = BridgeStateManager()
+            Log.d(TAG, "[BOOT_TRACE] Passo 2: StateManager ok")
+            controllerRegistry = ControllerRegistry(applicationContext)
+            Log.d(TAG, "[BOOT_TRACE] Passo 3: ControllerRegistry ok")
+            shizukuService = ShizukuServiceRepository()
+            Log.d(TAG, "[BOOT_TRACE] Passo 4: ShizukuService ok")
+            watchdogManager = WatchdogManager(applicationContext, shizukuService)
+            Log.d(TAG, "[BOOT_TRACE] Passo 5: WatchdogManager ok")
+            performanceMetrics = PerformanceMetrics()
+            Log.d(TAG, "[BOOT_TRACE] Passo 6: PerformanceMetrics ok")
+            structuredLogger = EnhancedStructuredLogger(TAG, performanceMetrics)
+            configManager = AdvancedConfigManager(applicationContext, structuredLogger)
+            profileManager = ProfilePersistenceManager(applicationContext, structuredLogger)
+            Log.d(TAG, "[BOOT_TRACE] Passo 7: Config/Profile ok")
+            setupStateListeners()
+            Log.d(TAG, "[BOOT_TRACE] Passo 8: StateListeners ok")
+        } catch (e: Exception) {
+            Log.e("CRASH_DEBUG", "InputBridgeService.onCreate component init failed: ${e.message}", e)
+        }
 
-        // Initialize architecture components
-        stateManager = BridgeStateManager()
-        controllerRegistry = ControllerRegistry(applicationContext)
-        shizukuService = ShizukuServiceRepository()
-        watchdogManager = WatchdogManager(applicationContext, shizukuService)
-        performanceMetrics = PerformanceMetrics()
-        structuredLogger = EnhancedStructuredLogger(TAG, performanceMetrics)
-        configManager = AdvancedConfigManager(applicationContext, structuredLogger)
-        profileManager = ProfilePersistenceManager(applicationContext, structuredLogger)
+        try {
+            inputManager = getSystemService(InputManager::class.java)
+            windowManager = getSystemService(WindowManager::class.java)
+            choreographer = Choreographer.getInstance()
+            inputManager.registerInputDeviceListener(this, injectionHandler)
+            Log.d(TAG, "[BOOT_TRACE] Passo 9: System services ok")
+        } catch (e: Exception) {
+            Log.e("CRASH_DEBUG", "InputBridgeService system services failed: ${e.message}", e)
+        }
 
-        // Setup state listeners
-        setupStateListeners()
+        try {
+            createNotificationChannel()
+            startForeground(NOTIF_ID, buildNotification("Bridge inativa"))
+            Log.d(TAG, "[BOOT_TRACE] Passo 10: Foreground started")
+        } catch (e: Exception) {
+            Log.e("CRASH_DEBUG", "InputBridgeService foreground start failed: ${e.message}", e)
+        }
 
-        // Initialize system services
-        inputManager = getSystemService(InputManager::class.java)
-        windowManager = getSystemService(WindowManager::class.java)
-        choreographer = Choreographer.getInstance()
-
-        // Register for input device events
-        inputManager.registerInputDeviceListener(this, injectionHandler)
-
-        // Initialize notification channel
-        createNotificationChannel()
-        startForeground(NOTIF_ID, buildNotification("Bridge inativa"))
-
-        // Update screen dimensions
-        updateScreenDimensions()
-
-        // Transition to initializing state
-        stateManager.transitionTo(BridgeState.Initializing)
-
-        // Load controller assignments
-        loadControllerAssignments()
-
-        Log.d(TAG, "Service initialized with enhanced features")
+        try {
+            updateScreenDimensions()
+            stateManager.transitionTo(BridgeState.Initializing)
+            loadControllerAssignments()
+            Log.d(TAG, "[BOOT_TRACE] Passo 11: Service fully initialized")
+        } catch (e: Exception) {
+            Log.e("CRASH_DEBUG", "InputBridgeService late init failed: ${e.message}", e)
+        }
     }
 
     private fun setupStateListeners() {
@@ -304,11 +315,16 @@ class InputBridgeService : Service(), InputManager.InputDeviceListener {
     override fun onBind(intent: Intent?): IBinder = binder
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        Log.d(TAG, "[SERVICE_START] onStartCommand flags=$flags startId=$startId")
-        val shizukuReady = shizukuService.isReady()
-        Log.d(TAG, "[SERVICE_START] Shizuku ready: $shizukuReady")
-        if (!shizukuReady) {
-            Log.w(TAG, "[SERVICE_START] Shizuku NOT ready — service will wait for binder events")
+        Log.d(TAG, "[BOOT_TRACE] onStartCommand flags=$flags startId=$startId")
+        try {
+            if (::shizukuService.isInitialized) {
+                val shizukuReady = shizukuService.isReady()
+                Log.d(TAG, "[BOOT_TRACE] Shizuku ready: $shizukuReady")
+            } else {
+                Log.w(TAG, "[BOOT_TRACE] shizukuService not initialized yet")
+            }
+        } catch (e: Exception) {
+            Log.e("CRASH_DEBUG", "onStartCommand Shizuku check failed: ${e.message}", e)
         }
         return START_STICKY
     }

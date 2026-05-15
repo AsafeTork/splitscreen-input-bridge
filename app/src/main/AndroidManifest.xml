@@ -9,6 +9,14 @@
     <uses-permission android:name="moe.shizuku.manager.permission.API_V23" />
     <uses-permission android:name="android.permission.BIND_ACCESSIBILITY_SERVICE" tools:ignore="ProtectedPermissions" />
 
+    <!-- Android 11+: queries obrigatório para detectar Shizuku -->
+    <queries>
+        <package android:name="moe.shizuku.manager" />
+        <intent>
+            <action android:name="moe.shizuku.api.action" />
+        </intent>
+    </queries>
+
     <uses-feature android:name="android.hardware.bluetooth" android:required="false" />
 
     <application
@@ -59,8 +67,13 @@
         <service
             android:name=".ShizukuPrivilegedUserService"
             android:exported="true"
-            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
+            android:permission="moe.shizuku.manager.permission.API_V23"
             tools:ignore="ExportedService" />
+
+        <provider
+            android:name="rikka.shizuku.ShizukuProvider"
+            android:authorities="${applicationId}.shizuku"
+            android:exported="true" />
 
         <receiver
             android:name=".util.AdbTestReceiver"

@@ -118,6 +118,25 @@ class MainActivity : ComponentActivity(), InputManager.InputDeviceListener {
         }
     }
 
+    private val shizukuBinderReceivedStickyListener = Shizuku.OnBinderReceivedListener {
+        Log.d("MainActivity", "Shizuku binder received (sticky)")
+        val granted = Shizuku.checkSelfPermission() == android.content.pm.PackageManager.PERMISSION_GRANTED
+        Log.d("MainActivity", "Shizuku permission status: granted=$granted")
+        updateShizukuPermissionState(granted)
+    }
+
+    private val shizukuBinderDeadListener = Shizuku.OnBinderDeadListener {
+        Log.d("MainActivity", "Shizuku binder died")
+        _uiState.value = _uiState.value.copy(
+            shizukuAvailable = false,
+            shizukuGranted = false,
+            serviceConnected = false,
+            bridgeActive = false,
+            statusMessage = "Shizuku não disponível"
+        )
+        stopPermissionMonitoring()
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -153,25 +172,9 @@ class MainActivity : ComponentActivity(), InputManager.InputDeviceListener {
 
         Shizuku.addRequestPermissionResultListener(shizukuListener)
         Shizuku.addRequestPermissionResultListener(shizukuPermissionDeniedListener)
-        Shizuku.addBinderReceivedListenerSticky {
-            Log.d("MainActivity", "Shizuku binder received (sticky)")
-            val granted = Shizuku.checkSelfPermission() == android.content.pm.PackageManager.PERMISSION_GRANTED
-            Log.d("MainActivity", "Shizuku permission status: granted=$granted")
-            updateShizukuPermissionState(granted)
-        }
+        Shizuku.addBinderReceivedListenerSticky(shizukuBinderReceivedStickyListener)
         Shizuku.addBinderReceivedListener(shizukuPermissionChangeListener)
-        Shizuku.addBinderDeadListener {
-            Log.d("MainActivity", "Shizuku binder died")
-            _uiState.value = _uiState.value.copy(
-                shizukuAvailable = false,
-                shizukuGranted = false,
-                serviceConnected = false,
-                bridgeActive = false,
-                statusMessage = "Shizuku não disponível"
-            )
-            // Stop permission monitoring when Shizuku dies
-            stopPermissionMonitoring()
-        }
+        Shizuku.addBinderDeadListener(shizukuBinderDeadListener)
 
         refreshGamepads()
 
@@ -185,7 +188,8 @@ class MainActivity : ComponentActivity(), InputManager.InputDeviceListener {
                     onBindPlayer2 = { descriptor -> bindPlayer(2, descriptor) },
                     onToggleBridge = { toggleBridge() },
                     onRefreshDevices = { refreshGamepads() },
-                    onRunDiagnostics = { runShizukuDiagnostics() }
+                    onRunDiagnostics = { runShizukuDiagnostics() },
+                    onOpenAccessibilitySettings = { openAccessibilitySettings(this@MainActivity) }
                 )
             }
         }
@@ -445,11 +449,48 @@ class MainActivity : ComponentActivity(), InputManager.InputDeviceListener {
         Shizuku.removeRequestPermissionResultListener(shizukuListener)
         Shizuku.removeRequestPermissionResultListener(shizukuPermissionDeniedListener)
         Shizuku.removeBinderReceivedListener(shizukuPermissionChangeListener)
+        Shizuku.removeBinderReceivedListener(shizukuBinderReceivedStickyListener)
+        Shizuku.removeBinderDeadListener(shizukuBinderDeadListener)
         stopPermissionMonitoring()
         shizukuMonitor.stopMonitoring()
         try {
             unbindService(serviceConnection)
         } catch (_: Exception) {}
+    }
+
+    // --- Accessibility helpers (must be inside MainActivity to access contentResolver/startActivity) ---
+
+    private fun isAccessibilityServiceEnabled(context: Context): Boolean {
+        val expectedComponentName = ComponentName(context, InputBridgeAccessibilityService::class.java)
+        val enabledServicesSetting = Settings.Secure.getString(
+            context.contentResolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
+        ) ?: return false
+
+        val colonSplitter = android.text.TextUtils.SimpleStringSplitter(':')
+        colonSplitter.setString(enabledServicesSetting)
+        while (colonSplitter.hasNext()) {
+            val componentNameString = colonSplitter.next()
+            val enabledService = ComponentName.unflattenFromString(componentNameString)
+            if (enabledService != null && enabledService == expectedComponentName) {
+                return true
+            }
+        }
+        return false
+    }
+
+    private fun openAccessibilitySettings(context: Context) {
+        try {
+            val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
+            context.startActivity(intent)
+        } catch (e: Exception) {
+            Log.e("MainActivity", "Error opening accessibility settings", e)
+            try {
+                val intent = Intent(Settings.ACTION_SETTINGS)
+                context.startActivity(intent)
+            } catch (e2: Exception) {
+                Log.e("MainActivity", "Error opening main settings", e2)
+            }
+        }
     }
 }
 
@@ -480,7 +521,8 @@ fun BridgeScreen(
     onBindPlayer2: (String) -> Unit,
     onToggleBridge: () -> Unit,
     onRefreshDevices: () -> Unit,
-    onRunDiagnostics: () -> Unit
+    onRunDiagnostics: () -> Unit,
+    onOpenAccessibilitySettings: () -> Unit
 ) {
     Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         Column(
@@ -498,7 +540,7 @@ fun BridgeScreen(
                 modifier = Modifier.fillMaxWidth()
             )
 
-            StatusCard(state = state, onRequestShizuku = onRequestShizuku, onRunDiagnostics = onRunDiagnostics)
+            StatusCard(state = state, onRequestShizuku = onRequestShizuku, onRunDiagnostics = onRunDiagnostics, onOpenAccessibility = onOpenAccessibilitySettings)
 
             GamepadBindingCard(
                 title = "Player 1 (Nativo)",
@@ -527,7 +569,7 @@ fun BridgeScreen(
 }
 
 @Composable
-fun StatusCard(state: BridgeUiState, onRequestShizuku: () -> Unit, onRunDiagnostics: () -> Unit) {
+fun StatusCard(state: BridgeUiState, onRequestShizuku: () -> Unit, onRunDiagnostics: () -> Unit, onOpenAccessibility: () -> Unit) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(12.dp),
@@ -539,6 +581,18 @@ fun StatusCard(state: BridgeUiState, onRequestShizuku: () -> Unit, onRunDiagnost
             StatusRow(label = "Shizuku", ok = state.shizukuAvailable, text = if (state.shizukuAvailable) "Disponível" else "Não encontrado")
             StatusRow(label = "Permissão", ok = state.shizukuGranted, text = if (state.shizukuGranted) "Concedida" else "Pendente")
             StatusRow(label = "Serviço", ok = state.serviceConnected, text = if (state.serviceConnected) "Conectado" else "Desconectado")
+            StatusRow(label = "Acessibilidade", ok = state.accessibilityServiceEnabled, text = if (state.accessibilityServiceEnabled) "Habilitada" else "Desabilitada")
+
+            // Show troubleshooting message prominently
+            if (state.troubleshootingMessage.isNotEmpty()) {
+                Text(
+                    text = state.troubleshootingMessage,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.padding(top = 4.dp)
+                )
+            }
 
             // Show detailed status message if available
             if (state.detailedStatus.isNotEmpty()) {
@@ -550,12 +604,34 @@ fun StatusCard(state: BridgeUiState, onRequestShizuku: () -> Unit, onRunDiagnost
                 )
             }
 
+            // ACTION BUTTONS - Shizuku
             if (!state.shizukuGranted && state.shizukuAvailable) {
                 Button(
                     onClick = onRequestShizuku,
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Text("Conceder Permissão Shizuku")
+                }
+            }
+
+            if (!state.shizukuAvailable) {
+                Button(
+                    onClick = onRunDiagnostics,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                ) {
+                    Text("Shizuku não detectado - Diagnosticar")
+                }
+            }
+
+            // ACTION BUTTONS - Accessibility
+            if (!state.accessibilityServiceEnabled) {
+                Button(
+                    onClick = onOpenAccessibility,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF9800))
+                ) {
+                    Text("Habilitar Serviço de Acessibilidade")
                 }
             }
 
@@ -738,37 +814,3 @@ fun BridgeControlCard(state: BridgeUiState, onToggle: () -> Unit) {
         }
     }
 }
-
-    private fun isAccessibilityServiceEnabled(context: Context): Boolean {
-        val expectedComponentName = ComponentName(context, InputBridgeAccessibilityService::class.java)
-        val enabledServicesSetting = Settings.Secure.getString(
-            context.contentResolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
-        ) ?: return false
-
-        val colonSplitter = android.text.TextUtils.SimpleStringSplitter(':')
-        colonSplitter.setString(enabledServicesSetting)
-        while (colonSplitter.hasNext()) {
-            val componentNameString = colonSplitter.next()
-            val enabledService = ComponentName.unflattenFromString(componentNameString)
-            if (enabledService != null && enabledService == expectedComponentName) {
-                return true
-            }
-        }
-        return false
-    }
-
-    private fun openAccessibilitySettings(context: Context) {
-        try {
-            val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
-            context.startActivity(intent)
-        } catch (e: Exception) {
-            Log.e("MainActivity", "Error opening accessibility settings", e)
-            // Fallback to main settings
-            try {
-                val intent = Intent(Settings.ACTION_SETTINGS)
-                context.startActivity(intent)
-            } catch (e2: Exception) {
-                Log.e("MainActivity", "Error opening main settings", e2)
-            }
-        }
-    }

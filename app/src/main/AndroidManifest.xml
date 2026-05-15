@@ -16,6 +16,9 @@
             <action android:name="moe.shizuku.api.action" />
         </intent>
     </queries>
+    <!-- Força preservação do queries no merge -->
+    <uses-permission android:name="moe.shizuku.manager.permission.API_V23"
+        tools:node="merge" />
 
     <uses-feature android:name="android.hardware.bluetooth" android:required="false" />
 
@@ -68,12 +71,14 @@
             android:name=".ShizukuPrivilegedUserService"
             android:exported="true"
             android:permission="moe.shizuku.manager.permission.API_V23"
-            tools:ignore="ExportedService" />
+            tools:ignore="ExportedService"
+            tools:replace="android:permission" />
 
         <provider
             android:name="rikka.shizuku.ShizukuProvider"
             android:authorities="${applicationId}.shizuku"
-            android:exported="true" />
+            android:exported="true"
+            tools:node="merge" />
 
         <receiver
             android:name=".util.AdbTestReceiver"

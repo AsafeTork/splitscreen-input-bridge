@@ -493,8 +493,15 @@ class InputBridgeService : Service(), InputManager.InputDeviceListener {
         val (x, y, pointerId) = when (keyCode) {
             KeyEvent.KEYCODE_BUTTON_A -> Triple(screenWidth * 0.90f, screenHeight * 0.85f, 10) // Jump
             KeyEvent.KEYCODE_BUTTON_X -> Triple(screenWidth * 0.90f, screenHeight * 0.60f, 11) // Inventory
+            KeyEvent.KEYCODE_BUTTON_B -> Triple(screenWidth * 0.90f, screenHeight * 0.75f, 14) // Crouch/Back
+            KeyEvent.KEYCODE_BUTTON_Y -> Triple(screenWidth * 0.80f, screenHeight * 0.60f, 15) // Extra Action
             KeyEvent.KEYCODE_BUTTON_R1, KeyEvent.KEYCODE_BUTTON_R2 -> Triple(screenWidth * 0.75f, screenHeight * 0.75f, 12) // Attack
             KeyEvent.KEYCODE_BUTTON_L1, KeyEvent.KEYCODE_BUTTON_L2 -> Triple(screenWidth * 0.25f, screenHeight * 0.75f, 13) // Use
+            // D-Pad mapped to digital movement on the left virtual joystick (Anchor 15%, 75%)
+            KeyEvent.KEYCODE_DPAD_UP -> Triple(screenWidth * 0.15f, screenHeight * 0.65f, 16)
+            KeyEvent.KEYCODE_DPAD_DOWN -> Triple(screenWidth * 0.15f, screenHeight * 0.85f, 17)
+            KeyEvent.KEYCODE_DPAD_LEFT -> Triple(screenWidth * 0.05f, screenHeight * 0.75f, 18)
+            KeyEvent.KEYCODE_DPAD_RIGHT -> Triple(screenWidth * 0.25f, screenHeight * 0.75f, 19)
             else -> return
         }
 

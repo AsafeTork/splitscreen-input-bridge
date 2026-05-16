@@ -442,31 +442,86 @@ class InputBridgeService : Service(), InputManager.InputDeviceListener {
      * Called from the InputBridgeAccessibilityService or a raw InputReader hook
      * whenever a MotionEvent arrives from any gamepad device.
      */
+    private val deviceToPlayerMap = mutableMapOf<String, Int>() // descriptor -> playerNumber
+
     fun onGamepadMotionEvent(event: MotionEvent): Boolean {
         val currentState = stateManager.getCurrentState()
         if (currentState !is BridgeState.Active) return false
 
-        val deviceId = event.deviceId
+        val device = android.view.InputDevice.getDevice(event.deviceId) ?: return false
+        val descriptor = device.descriptor ?: event.deviceId.toString()
         
-        // Dynamic assignment: first device to send events is Player 1, second is Player 2
-        if (!deviceToPlayerMap.containsKey(deviceId)) {
-            if (!deviceToPlayerMap.values.contains(1)) {
-                deviceToPlayerMap[deviceId] = 1
-                Log.i(TAG, "DYNAMIC_MAP: Device $deviceId -> Player 1 (TOP)")
-            } else if (!deviceToPlayerMap.values.contains(2)) {
-                deviceToPlayerMap[deviceId] = 2
-                Log.i(TAG, "DYNAMIC_MAP: Device $deviceId -> Player 2 (BOTTOM)")
+        // 1. Dynamic assignment (stable by descriptor)
+        if (!deviceToPlayerMap.containsKey(descriptor)) {
+            val assignedPlayer = if (!deviceToPlayerMap.values.contains(1)) 1 else if (!deviceToPlayerMap.values.contains(2)) 2 else null
+            if (assignedPlayer != null) {
+                deviceToPlayerMap[descriptor] = assignedPlayer
+                Log.i(TAG, "SPLIT_DEBUG: Device '${device.name}' ($descriptor) -> Player $assignedPlayer")
             } else {
-                Log.w(TAG, "DYNAMIC_MAP: Device $deviceId ignored (max players reached)")
+                Log.w(TAG, "SPLIT_DEBUG: Max players reached. Ignoring device '${device.name}'")
                 return false
             }
         }
 
-        val playerNumber = deviceToPlayerMap[deviceId] ?: return false
+        val playerNumber = deviceToPlayerMap[descriptor] ?: return false
         
-        Log.v(TAG, "PROCESS_INPUT: Player $playerNumber (Device $deviceId) injecting event")
-        injectTransformedEvent(event, playerNumber)
+        // 2. Comprehensive Input Processing
+        processAndInjectEvent(event, playerNumber)
         return true
+    }
+
+    private fun processAndInjectEvent(source: MotionEvent, playerNumber: Int) {
+        val screenWidth = resources.displayMetrics.widthPixels
+        val screenHeight = resources.displayMetrics.heightPixels
+        
+        // Player Area (Top: 0 to H/2, Bottom: H/2 to H)
+        val yOffset = if (playerNumber == 1) 0f else screenHeight / 2f
+        val playerHeight = screenHeight / 2f
+        
+        // --- AXIS MAPPING ---
+        // Left Stick: Move (Lower Left of the player half)
+        val lsX = source.getX()
+        val lsY = source.getY()
+        
+        // Right Stick: Look (Center Right of the player half)
+        val rsX = source.getAxisValue(MotionEvent.AXIS_Z)
+        val rsY = source.getAxisValue(MotionEvent.AXIS_RZ)
+
+        // Trigger Left Stick Injection (Move)
+        if (Math.abs(lsX) > 0.1f || Math.abs(lsY) > 0.1f) {
+            val touchX = (screenWidth * 0.2f) + (lsX * (screenWidth * 0.1f))
+            val touchY = yOffset + (playerHeight * 0.7f) + (lsY * (playerHeight * 0.2f))
+            Log.v(TAG, "SPLIT_DEBUG: P$playerNumber MOVE -> X=$touchX Y=$touchY")
+            injectTouch(touchX, touchY, MotionEvent.ACTION_MOVE)
+        }
+
+        // Trigger Right Stick Injection (Look/Aim)
+        if (Math.abs(rsX) > 0.1f || Math.abs(rsY) > 0.1f) {
+            val touchX = (screenWidth * 0.7f) + (rsX * (screenWidth * 0.2f))
+            val touchY = yOffset + (playerHeight * 0.5f) + (rsY * (playerHeight * 0.3f))
+            Log.v(TAG, "SPLIT_DEBUG: P$playerNumber LOOK -> X=$touchX Y=$touchY")
+            injectTouch(touchX, touchY, MotionEvent.ACTION_MOVE)
+        }
+        
+        // Note: ACTION_DOWN/UP would be handled by button mappings in a full implementation
+    }
+
+    private fun injectTouch(x: Float, y: Float, action: Int) {
+        serviceScope.launch {
+            try {
+                // Create a synthetic MotionEvent for touch injection
+                val now = System.currentTimeMillis()
+                val event = MotionEvent.obtain(
+                    now, now, action, x, y, 0
+                ).apply {
+                    source = android.view.InputDevice.SOURCE_TOUCHSCREEN
+                }
+                shizukuService.injectInputEvent(event)
+                event.recycle()
+            } catch (e: Exception) {
+                Log.e(TAG, "SPLIT_DEBUG: Injection error: ${e.message}")
+            }
+        }
     }
 
     private fun injectTransformedEvent(source: MotionEvent, playerNumber: Int) {

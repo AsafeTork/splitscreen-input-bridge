@@ -388,57 +388,14 @@ class InputBridgeService : Service(), InputManager.InputDeviceListener {
                     stateManager.transitionTo(BridgeState.Error("Os dois jogadores não podem usar o mesmo controle"))
                     return@launch
                 }
-        // Apply aggressive system hacks for multi-window stability
-        serviceScope.launch {
-            try {
-                shizukuService.execShellCommand("settings put global multi_window_focus_enabled 1")
-                shizukuService.execShellCommand("settings put global force_resizable_activities 1")
-                shizukuService.execShellCommand("settings put global enable_freeform_support 1")
-                Log.i(TAG, "Aggressive system hacks applied for multi-window focus")
-            } catch (e: Exception) {
-                Log.e(TAG, "Failed to apply system hacks: ${e.message}")
-            }
-        }
+                // Apply aggressive system hacks
+                applySystemHacks()
 
-        // Start Anti-Pause Keep-Alive loop
-        startAntiPauseEngine()
-    }
+                // Start Anti-Pause Keep-Alive loop
+                startAntiPauseEngine()
 
-    private var antiPauseJob: kotlinx.coroutines.Job? = null
-    private fun startAntiPauseEngine() {
-        antiPauseJob?.cancel()
-        antiPauseJob = serviceScope.launch {
-            while (isActive) {
-                if (stateManager.getCurrentState() is BridgeState.Active) {
-                    // Inject a tiny, harmless click to keep apps 'active'
-                    keepAppActive(1)
-                    keepAppActive(2)
-                }
-                kotlinx.coroutines.delay(1000) // Every second for stability
-            }
-        }
-    }
-
-    private fun keepAppActive(player: Int) {
-        val x = if (player == 1) 5f else 5f // Safe corner
-        val y = if (player == 1) 5f else screenHeight - 5f
-        
-        serviceScope.launch {
-            try {
-                val now = System.currentTimeMillis()
-                val down = MotionEvent.obtain(now, now, MotionEvent.ACTION_DOWN, x, y, 0).apply {
-                    source = android.view.InputDevice.SOURCE_TOUCHSCREEN
-                }
-                val up = MotionEvent.obtain(now, now + 10, MotionEvent.ACTION_UP, x, y, 0).apply {
-                    source = android.view.InputDevice.SOURCE_TOUCHSCREEN
-                }
-                shizukuService.injectInputEvent(down)
-                shizukuService.injectInputEvent(up)
-                down.recycle()
-                up.recycle()
-            } catch (e: Exception) {}
-        }
-    }
+                // Start Injection Pipeline
+                startInjectionPipeline()
 
                 // Transition to active state
                 stateManager.transitionTo(BridgeState.Active)
@@ -475,8 +432,8 @@ class InputBridgeService : Service(), InputManager.InputDeviceListener {
                     )
                 )
 
-                // Stop anti-pause loop
-                antiPauseJob?.cancel()
+                // Stop injection pipeline
+                stopInjectionPipeline()
 
                 Log.i(TAG, "Bridge stopped successfully")
             } catch (e: Exception) {
@@ -565,28 +522,54 @@ class InputBridgeService : Service(), InputManager.InputDeviceListener {
         }
     }
 
-    private fun injectTouchWithId(x: Float, y: Float, action: Int, pointerId: Int) {
-        serviceScope.launch {
-            try {
-                val now = System.currentTimeMillis()
-                val props = arrayOf(MotionEvent.PointerProperties().apply {
-                    id = pointerId
-                    toolType = MotionEvent.TOOL_TYPE_FINGER
-                })
-                val coords = arrayOf(MotionEvent.PointerCoords().apply {
-                    this.x = x
-                    this.y = y
-                    pressure = 1f
-                })
-                val event = MotionEvent.obtain(
-                    now, now, action, 1, props, coords, 0, 0, 1f, 1f, 0, 0, android.view.InputDevice.SOURCE_TOUCHSCREEN, 0
-                )
-                shizukuService.injectInputEvent(event)
-                event.recycle()
-            } catch (e: Exception) {
-                Log.e(TAG, "SPLIT_DEBUG: Injection error: ${e.message}")
+    private val injectionChannel = kotlinx.coroutines.channels.Channel<MotionEvent>(kotlinx.coroutines.channels.Channel.UNLIMITED)
+    private var injectionJob: Job? = null
+    private val lastInjectionTime = mutableMapOf<Int, Long>() // pointerId -> lastTime
+
+    private fun startInjectionPipeline() {
+        injectionJob?.cancel()
+        injectionJob = serviceScope.launch {
+            for (event in injectionChannel) {
+                try {
+                    shizukuService.injectInputEvent(event)
+                    event.recycle()
+                } catch (e: Exception) {
+                    Log.e(TAG, "Pipeline error: ${e.message}")
+                }
             }
         }
+    }
+
+    private fun stopInjectionPipeline() {
+        injectionJob?.cancel()
+        antiPauseJob?.cancel()
+    }
+
+    private fun injectTouchWithId(x: Float, y: Float, action: Int, pointerId: Int) {
+        val now = System.currentTimeMillis()
+        
+        // Throttling: Skip MOVE events if sent too frequently (max 60 FPS)
+        if (action == MotionEvent.ACTION_MOVE) {
+            val lastTime = lastInjectionTime[pointerId] ?: 0L
+            if (now - lastTime < 16) return // Skip if < 16ms
+        }
+        lastInjectionTime[pointerId] = now
+
+        val props = arrayOf(MotionEvent.PointerProperties().apply {
+            id = pointerId
+            toolType = MotionEvent.TOOL_TYPE_FINGER
+        })
+        val coords = arrayOf(MotionEvent.PointerCoords().apply {
+            this.x = x
+            this.y = y
+            pressure = 1f
+        })
+        val event = MotionEvent.obtain(
+            now, now, action, 1, props, coords, 0, 0, 1f, 1f, 0, 0, android.view.InputDevice.SOURCE_TOUCHSCREEN, 0
+        )
+        
+        // Send to pipeline instead of launching new coroutine
+        injectionChannel.trySend(event)
     }
 
     private fun injectTouch(x: Float, y: Float, action: Int) {

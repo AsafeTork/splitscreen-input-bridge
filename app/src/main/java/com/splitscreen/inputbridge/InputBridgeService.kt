@@ -483,6 +483,8 @@ class InputBridgeService : Service(), InputManager.InputDeviceListener {
     private val lastDispatchedPointers = mutableMapOf<Int, MotionEvent.PointerCoords>()
     private val lastDispatchedProperties = mutableMapOf<Int, MotionEvent.PointerProperties>()
     private val syncedPointerIds = mutableListOf<Int>() // Tracks currently active (dispatched) pointer IDs
+    
+    private var activeDownTime: Long = 0L // Tracks the time the first pointer touched the screen
 
     private fun processPlayer2Button(keyCode: Int, isDown: Boolean) {
         val screenWidth = resources.displayMetrics.widthPixels.toFloat()
@@ -566,7 +568,7 @@ class InputBridgeService : Service(), InputManager.InputDeviceListener {
     }
 
     private fun syncMultiTouch() {
-        val now = System.currentTimeMillis()
+        val now = android.os.SystemClock.uptimeMillis()
 
         // 1. Check for newly removed pointers
         val removedIds = syncedPointerIds.filter { !activePointers.containsKey(it) }
@@ -581,10 +583,18 @@ class InputBridgeService : Service(), InputManager.InputDeviceListener {
                 lastDispatchedProperties.remove(id)
             }
         }
+        
+        if (syncedPointerIds.isEmpty()) {
+            activeDownTime = 0L // Reset downTime when all fingers are off
+        }
 
         // 2. Check for newly added pointers
         val addedIds = activePointers.keys.filter { !syncedPointerIds.contains(it) }
         for (id in addedIds) {
+            if (syncedPointerIds.isEmpty()) {
+                activeDownTime = now // Establish downTime on first touch
+            }
+            
             syncedPointerIds.add(id)
             // Cache the newly added pointer data
             activePointers[id]?.let { lastDispatchedPointers[id] = it }
@@ -625,7 +635,7 @@ class InputBridgeService : Service(), InputManager.InputDeviceListener {
         }
 
         val event = MotionEvent.obtain(
-            time, time, action,
+            activeDownTime, time, action,
             propsList.size, propsList.toTypedArray(), coordsList.toTypedArray(),
             0, 0, 1f, 1f, 0, 0,
             android.view.InputDevice.SOURCE_TOUCHSCREEN, 0

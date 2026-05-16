@@ -474,13 +474,17 @@ class InputBridgeService : Service(), InputManager.InputDeviceListener {
         processPlayer2Axes(event)
     }
 
-    // --- GEOMETRIC MAPPING & MULTI-TOUCH ENGINE ---
+    // --- ULTRA-PRECISION TOUCH ENGINE ---
     
-    private val activePointers = mutableMapOf<Int, MotionEvent.PointerCoords>() // pointerId -> lastCoords
+    private val activePointers = mutableMapOf<Int, MotionEvent.PointerCoords>()
     private val activeProperties = mutableMapOf<Int, MotionEvent.PointerProperties>()
+    
+    // Caches to hold data for pointers that are about to be removed (so we can dispatch the UP event)
+    private val lastDispatchedPointers = mutableMapOf<Int, MotionEvent.PointerCoords>()
+    private val lastDispatchedProperties = mutableMapOf<Int, MotionEvent.PointerProperties>()
+    private val syncedPointerIds = mutableListOf<Int>() // Tracks currently active (dispatched) pointer IDs
 
     private fun processPlayer2Button(keyCode: Int, isDown: Boolean) {
-        // Minecraft Touch HUD Mapping (P2 - Bottom Half)
         val screenWidth = resources.displayMetrics.widthPixels.toFloat()
         val screenHeight = resources.displayMetrics.heightPixels.toFloat()
 
@@ -495,29 +499,44 @@ class InputBridgeService : Service(), InputManager.InputDeviceListener {
         updatePointerState(pointerId, x, y, isDown)
     }
 
+    private fun applyRadialSmoothing(axisX: Float, axisY: Float, maxRadiusX: Float, maxRadiusY: Float): Pair<Float, Float> {
+        val magnitude = Math.hypot(axisX.toDouble(), axisY.toDouble()).toFloat()
+        if (magnitude < DEADZONE_THRESHOLD) return Pair(0f, 0f)
+
+        val normalizedMagnitude = Math.min((magnitude - DEADZONE_THRESHOLD) / (1f - DEADZONE_THRESHOLD), 1f)
+        val angle = Math.atan2(axisY.toDouble(), axisX.toDouble())
+        
+        val offsetX = (Math.cos(angle) * normalizedMagnitude * maxRadiusX).toFloat()
+        val offsetY = (Math.sin(angle) * normalizedMagnitude * maxRadiusY).toFloat()
+        
+        return Pair(offsetX, offsetY)
+    }
+
     private fun processPlayer2Axes(event: MotionEvent) {
         val screenWidth = resources.displayMetrics.widthPixels.toFloat()
         val screenHeight = resources.displayMetrics.heightPixels.toFloat()
         val yOffset = screenHeight / 2f
         val playerHeight = screenHeight / 2f
 
-        // LS: Move (ID 1)
+        // LS: Move (ID 1) - Anchor at X: 15%, Y: 75% of bottom screen
         val lsX = event.getX()
         val lsY = event.getY()
-        if (Math.abs(lsX) > DEADZONE_THRESHOLD || Math.abs(lsY) > DEADZONE_THRESHOLD) {
-            val tx = (screenWidth * 0.15f) + (lsX * (screenWidth * 0.1f))
-            val ty = yOffset + (playerHeight * 0.75f) + (lsY * (playerHeight * 0.2f))
+        val lsOffset = applyRadialSmoothing(lsX, lsY, screenWidth * 0.1f, playerHeight * 0.2f)
+        if (lsOffset.first != 0f || lsOffset.second != 0f) {
+            val tx = (screenWidth * 0.15f) + lsOffset.first
+            val ty = yOffset + (playerHeight * 0.75f) + lsOffset.second
             updatePointerState(1, tx, ty, true)
         } else {
             updatePointerState(1, 0f, 0f, false)
         }
 
-        // RS: Look (ID 2)
+        // RS: Look (ID 2) - Anchor at X: 75%, Y: 50% of bottom screen
         val rsX = event.getAxisValue(MotionEvent.AXIS_Z)
         val rsY = event.getAxisValue(MotionEvent.AXIS_RZ)
-        if (Math.abs(rsX) > DEADZONE_THRESHOLD || Math.abs(rsY) > DEADZONE_THRESHOLD) {
-            val tx = (screenWidth * 0.75f) + (rsX * (screenWidth * 0.2f))
-            val ty = yOffset + (playerHeight * 0.5f) + (rsY * (playerHeight * 0.3f))
+        val rsOffset = applyRadialSmoothing(rsX, rsY, screenWidth * 0.2f, playerHeight * 0.3f)
+        if (rsOffset.first != 0f || rsOffset.second != 0f) {
+            val tx = (screenWidth * 0.75f) + rsOffset.first
+            val ty = yOffset + (playerHeight * 0.5f) + rsOffset.second
             updatePointerState(2, tx, ty, true)
         } else {
             updatePointerState(2, 0f, 0f, false)
@@ -530,6 +549,7 @@ class InputBridgeService : Service(), InputManager.InputDeviceListener {
                 this.x = x
                 this.y = y
                 pressure = 1f
+                size = 1f
             }
             val props = MotionEvent.PointerProperties().apply {
                 this.id = id
@@ -546,18 +566,67 @@ class InputBridgeService : Service(), InputManager.InputDeviceListener {
     }
 
     private fun syncMultiTouch() {
-        if (activePointers.isEmpty()) return
-
         val now = System.currentTimeMillis()
-        val pointerCount = activePointers.size
-        val propsArray = activeProperties.values.toTypedArray()
-        val coordsArray = activePointers.values.toTypedArray()
 
-        // We use ACTION_MOVE as the base for multi-touch sync
-        // Android will handle DOWN/UP internally based on pointer count changes
+        // 1. Check for newly removed pointers
+        val removedIds = syncedPointerIds.filter { !activePointers.containsKey(it) }
+        for (id in removedIds) {
+            val pointerIndex = syncedPointerIds.indexOf(id)
+            if (pointerIndex != -1) {
+                val action = if (syncedPointerIds.size == 1) MotionEvent.ACTION_UP 
+                             else MotionEvent.ACTION_POINTER_UP or (pointerIndex shl MotionEvent.ACTION_POINTER_INDEX_SHIFT)
+                dispatchMultiTouchEvent(action, now, syncedPointerIds) // Dispatch with the pointer still in the list
+                syncedPointerIds.remove(id)
+                lastDispatchedPointers.remove(id)
+                lastDispatchedProperties.remove(id)
+            }
+        }
+
+        // 2. Check for newly added pointers
+        val addedIds = activePointers.keys.filter { !syncedPointerIds.contains(it) }
+        for (id in addedIds) {
+            syncedPointerIds.add(id)
+            // Cache the newly added pointer data
+            activePointers[id]?.let { lastDispatchedPointers[id] = it }
+            activeProperties[id]?.let { lastDispatchedProperties[id] = it }
+            
+            val pointerIndex = syncedPointerIds.indexOf(id)
+            val action = if (syncedPointerIds.size == 1) MotionEvent.ACTION_DOWN 
+                         else MotionEvent.ACTION_POINTER_DOWN or (pointerIndex shl MotionEvent.ACTION_POINTER_INDEX_SHIFT)
+            dispatchMultiTouchEvent(action, now, syncedPointerIds)
+        }
+
+        // 3. Dispatch ACTION_MOVE for all remaining active pointers
+        if (syncedPointerIds.isNotEmpty() && addedIds.isEmpty() && removedIds.isEmpty()) {
+            // Update cache for moving pointers
+            for (id in syncedPointerIds) {
+                activePointers[id]?.let { lastDispatchedPointers[id] = it }
+                activeProperties[id]?.let { lastDispatchedProperties[id] = it }
+            }
+            dispatchMultiTouchEvent(MotionEvent.ACTION_MOVE, now, syncedPointerIds)
+        }
+    }
+
+    private fun dispatchMultiTouchEvent(action: Int, time: Long, idsToInclude: List<Int>) {
+        if (idsToInclude.isEmpty()) return
+
+        val propsList = mutableListOf<MotionEvent.PointerProperties>()
+        val coordsList = mutableListOf<MotionEvent.PointerCoords>()
+
+        for (id in idsToInclude) {
+            // ALWAYS use the cache. This guarantees we have the data even if it was just removed from activePointers
+            lastDispatchedProperties[id]?.let { propsList.add(it) }
+            lastDispatchedPointers[id]?.let { coordsList.add(it) }
+        }
+
+        if (propsList.isEmpty() || propsList.size != idsToInclude.size) {
+            Log.e(TAG, "Multi-touch sync error: Missing pointer data. Expected ${idsToInclude.size}, got ${propsList.size}")
+            return
+        }
+
         val event = MotionEvent.obtain(
-            now, now, MotionEvent.ACTION_MOVE,
-            pointerCount, propsArray, coordsArray,
+            time, time, action,
+            propsList.size, propsList.toTypedArray(), coordsList.toTypedArray(),
             0, 0, 1f, 1f, 0, 0,
             android.view.InputDevice.SOURCE_TOUCHSCREEN, 0
         )

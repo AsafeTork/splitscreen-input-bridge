@@ -388,12 +388,57 @@ class InputBridgeService : Service(), InputManager.InputDeviceListener {
                     stateManager.transitionTo(BridgeState.Error("Os dois jogadores não podem usar o mesmo controle"))
                     return@launch
                 }
+        // Apply aggressive system hacks for multi-window stability
+        serviceScope.launch {
+            try {
+                shizukuService.execShellCommand("settings put global multi_window_focus_enabled 1")
+                shizukuService.execShellCommand("settings put global force_resizable_activities 1")
+                shizukuService.execShellCommand("settings put global enable_freeform_support 1")
+                Log.i(TAG, "Aggressive system hacks applied for multi-window focus")
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to apply system hacks: ${e.message}")
+            }
+        }
 
-                // Apply aggressive system hacks
-                applySystemHacks()
+        // Start Anti-Pause Keep-Alive loop
+        startAntiPauseEngine()
+    }
 
-                // Start Anti-Pause Keep-Alive loop
-                startAntiPauseEngine()
+    private var antiPauseJob: kotlinx.coroutines.Job? = null
+    private fun startAntiPauseEngine() {
+        antiPauseJob?.cancel()
+        antiPauseJob = serviceScope.launch {
+            while (isActive) {
+                if (stateManager.getCurrentState() is BridgeState.Active) {
+                    // Inject a tiny, harmless click to keep apps 'active'
+                    keepAppActive(1)
+                    keepAppActive(2)
+                }
+                kotlinx.coroutines.delay(1000) // Every second for stability
+            }
+        }
+    }
+
+    private fun keepAppActive(player: Int) {
+        val x = if (player == 1) 5f else 5f // Safe corner
+        val y = if (player == 1) 5f else screenHeight - 5f
+        
+        serviceScope.launch {
+            try {
+                val now = System.currentTimeMillis()
+                val down = MotionEvent.obtain(now, now, MotionEvent.ACTION_DOWN, x, y, 0).apply {
+                    source = android.view.InputDevice.SOURCE_TOUCHSCREEN
+                }
+                val up = MotionEvent.obtain(now, now + 10, MotionEvent.ACTION_UP, x, y, 0).apply {
+                    source = android.view.InputDevice.SOURCE_TOUCHSCREEN
+                }
+                shizukuService.injectInputEvent(down)
+                shizukuService.injectInputEvent(up)
+                down.recycle()
+                up.recycle()
+            } catch (e: Exception) {}
+        }
+    }
 
                 // Transition to active state
                 stateManager.transitionTo(BridgeState.Active)
@@ -473,40 +518,75 @@ class InputBridgeService : Service(), InputManager.InputDeviceListener {
         return true
     }
 
+    private val lsActive = mutableMapOf<Int, Boolean>() // player -> active
+    private val rsActive = mutableMapOf<Int, Boolean>()
+
     private fun processAndInjectEvent(source: MotionEvent, playerNumber: Int) {
         val screenWidth = resources.displayMetrics.widthPixels
         val screenHeight = resources.displayMetrics.heightPixels
         
-        // Player Area (Top: 0 to H/2, Bottom: H/2 to H)
         val yOffset = if (playerNumber == 1) 0f else screenHeight / 2f
         val playerHeight = screenHeight / 2f
         
-        // --- AXIS MAPPING ---
-        // Left Stick: Move (Lower Left of the player half)
+        // LS (Move) - Pointer ID 0
         val lsX = source.getX()
         val lsY = source.getY()
-        
-        // Right Stick: Look (Center Right of the player half)
+        handleStick(playerNumber, 0, lsX, lsY, screenWidth * 0.2f, yOffset + playerHeight * 0.7f, screenWidth * 0.1f, playerHeight * 0.2f, lsActive)
+
+        // RS (Look) - Pointer ID 1
         val rsX = source.getAxisValue(MotionEvent.AXIS_Z)
         val rsY = source.getAxisValue(MotionEvent.AXIS_RZ)
+        handleStick(playerNumber, 1, rsX, rsY, screenWidth * 0.7f, yOffset + playerHeight * 0.5f, screenWidth * 0.2f, playerHeight * 0.3f, rsActive)
+    }
 
-        // Trigger Left Stick Injection (Move)
-        if (Math.abs(lsX) > 0.1f || Math.abs(lsY) > 0.1f) {
-            val touchX = (screenWidth * 0.2f) + (lsX * (screenWidth * 0.1f))
-            val touchY = yOffset + (playerHeight * 0.7f) + (lsY * (playerHeight * 0.2f))
-            Log.v(TAG, "SPLIT_DEBUG: P$playerNumber MOVE -> X=$touchX Y=$touchY")
-            injectTouch(touchX, touchY, MotionEvent.ACTION_MOVE)
-        }
-
-        // Trigger Right Stick Injection (Look/Aim)
-        if (Math.abs(rsX) > 0.1f || Math.abs(rsY) > 0.1f) {
-            val touchX = (screenWidth * 0.7f) + (rsX * (screenWidth * 0.2f))
-            val touchY = yOffset + (playerHeight * 0.5f) + (rsY * (playerHeight * 0.3f))
-            Log.v(TAG, "SPLIT_DEBUG: P$playerNumber LOOK -> X=$touchX Y=$touchY")
-            injectTouch(touchX, touchY, MotionEvent.ACTION_MOVE)
-        }
+    private fun handleStick(player: Int, pointerId: Int, axisX: Float, axisY: Float, centerX: Float, centerY: Float, rangeX: Float, rangeY: Float, activeMap: MutableMap<Int, Boolean>) {
+        val isMoving = Math.abs(axisX) > 0.1f || Math.abs(axisY) > 0.1f
+        val wasMoving = activeMap[player] ?: false
         
-        // Note: ACTION_DOWN/UP would be handled by button mappings in a full implementation
+        val targetX = centerX + (axisX * rangeX)
+        val targetY = centerY + (axisY * rangeY)
+
+        when {
+            isMoving && !wasMoving -> {
+                // First movement -> ACTION_DOWN at center, then MOVE to target
+                injectTouchWithId(centerX, centerY, MotionEvent.ACTION_DOWN, pointerId)
+                injectTouchWithId(targetX, targetY, MotionEvent.ACTION_MOVE, pointerId)
+                activeMap[player] = true
+            }
+            isMoving && wasMoving -> {
+                // Sustained movement -> ACTION_MOVE
+                injectTouchWithId(targetX, targetY, MotionEvent.ACTION_MOVE, pointerId)
+            }
+            !isMoving && wasMoving -> {
+                // Stopped moving -> ACTION_UP
+                injectTouchWithId(targetX, targetY, MotionEvent.ACTION_UP, pointerId)
+                activeMap[player] = false
+            }
+        }
+    }
+
+    private fun injectTouchWithId(x: Float, y: Float, action: Int, pointerId: Int) {
+        serviceScope.launch {
+            try {
+                val now = System.currentTimeMillis()
+                val props = arrayOf(MotionEvent.PointerProperties().apply {
+                    id = pointerId
+                    toolType = MotionEvent.TOOL_TYPE_FINGER
+                })
+                val coords = arrayOf(MotionEvent.PointerCoords().apply {
+                    this.x = x
+                    this.y = y
+                    pressure = 1f
+                })
+                val event = MotionEvent.obtain(
+                    now, now, action, 1, props, coords, 0, 0, 1f, 1f, 0, 0, android.view.InputDevice.SOURCE_TOUCHSCREEN, 0
+                )
+                shizukuService.injectInputEvent(event)
+                event.recycle()
+            } catch (e: Exception) {
+                Log.e(TAG, "SPLIT_DEBUG: Injection error: ${e.message}")
+            }
+        }
     }
 
     private fun injectTouch(x: Float, y: Float, action: Int) {

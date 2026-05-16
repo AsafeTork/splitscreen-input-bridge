@@ -464,14 +464,12 @@ class InputBridgeService : Service(), InputManager.InputDeviceListener {
         return deviceToPlayerMap[descriptor] ?: -1
     }
 
-    fun onGamepadKeyEvent(event: KeyEvent) {
-        val playerNumber = 2 // This is only called for Player 2 from A11y
-        processPlayer2Button(event.keyCode, event.action == KeyEvent.ACTION_DOWN)
+    fun onGamepadKeyEvent(event: KeyEvent, player: Int) {
+        processPlayerButton(event.keyCode, event.action == KeyEvent.ACTION_DOWN, player)
     }
 
-    fun onGamepadMotionEvent(event: MotionEvent) {
-        // This is only called for Player 2 from A11y
-        processPlayer2Axes(event)
+    fun onGamepadMotionEvent(event: MotionEvent, player: Int) {
+        processPlayerAxes(event, player)
     }
 
     // --- ULTRA-PRECISION TOUCH ENGINE ---
@@ -486,22 +484,26 @@ class InputBridgeService : Service(), InputManager.InputDeviceListener {
     
     private var activeDownTime: Long = 0L // Tracks the time the first pointer touched the screen
 
-    private fun processPlayer2Button(keyCode: Int, isDown: Boolean) {
+    private fun processPlayerButton(keyCode: Int, isDown: Boolean, player: Int) {
         val screenWidth = resources.displayMetrics.widthPixels.toFloat()
         val screenHeight = resources.displayMetrics.heightPixels.toFloat()
+        
+        val yOffset = if (player == 1) 0f else screenHeight / 2f
+        val playerHeight = screenHeight / 2f
+        val idOffset = if (player == 1) 20 else 10
 
         val (x, y, pointerId) = when (keyCode) {
-            KeyEvent.KEYCODE_BUTTON_A -> Triple(screenWidth * 0.90f, screenHeight * 0.85f, 10) // Jump
-            KeyEvent.KEYCODE_BUTTON_X -> Triple(screenWidth * 0.90f, screenHeight * 0.60f, 11) // Inventory
-            KeyEvent.KEYCODE_BUTTON_B -> Triple(screenWidth * 0.90f, screenHeight * 0.75f, 14) // Crouch/Back
-            KeyEvent.KEYCODE_BUTTON_Y -> Triple(screenWidth * 0.80f, screenHeight * 0.60f, 15) // Extra Action
-            KeyEvent.KEYCODE_BUTTON_R1, KeyEvent.KEYCODE_BUTTON_R2 -> Triple(screenWidth * 0.75f, screenHeight * 0.75f, 12) // Attack
-            KeyEvent.KEYCODE_BUTTON_L1, KeyEvent.KEYCODE_BUTTON_L2 -> Triple(screenWidth * 0.25f, screenHeight * 0.75f, 13) // Use
-            // D-Pad mapped to digital movement on the left virtual joystick (Anchor 15%, 75%)
-            KeyEvent.KEYCODE_DPAD_UP -> Triple(screenWidth * 0.15f, screenHeight * 0.65f, 16)
-            KeyEvent.KEYCODE_DPAD_DOWN -> Triple(screenWidth * 0.15f, screenHeight * 0.85f, 17)
-            KeyEvent.KEYCODE_DPAD_LEFT -> Triple(screenWidth * 0.05f, screenHeight * 0.75f, 18)
-            KeyEvent.KEYCODE_DPAD_RIGHT -> Triple(screenWidth * 0.25f, screenHeight * 0.75f, 19)
+            KeyEvent.KEYCODE_BUTTON_A -> Triple(screenWidth * 0.90f, yOffset + playerHeight * 0.70f, idOffset + 0) // Jump
+            KeyEvent.KEYCODE_BUTTON_X -> Triple(screenWidth * 0.90f, yOffset + playerHeight * 0.20f, idOffset + 1) // Inventory
+            KeyEvent.KEYCODE_BUTTON_B -> Triple(screenWidth * 0.90f, yOffset + playerHeight * 0.50f, idOffset + 4) // Crouch/Back
+            KeyEvent.KEYCODE_BUTTON_Y -> Triple(screenWidth * 0.80f, yOffset + playerHeight * 0.20f, idOffset + 5) // Extra Action
+            KeyEvent.KEYCODE_BUTTON_R1, KeyEvent.KEYCODE_BUTTON_R2 -> Triple(screenWidth * 0.75f, yOffset + playerHeight * 0.50f, idOffset + 2) // Attack
+            KeyEvent.KEYCODE_BUTTON_L1, KeyEvent.KEYCODE_BUTTON_L2 -> Triple(screenWidth * 0.25f, yOffset + playerHeight * 0.50f, idOffset + 3) // Use
+            // D-Pad mapped to digital movement on the left virtual joystick (Anchor 15%, 50%)
+            KeyEvent.KEYCODE_DPAD_UP -> Triple(screenWidth * 0.15f, yOffset + playerHeight * 0.30f, idOffset + 6)
+            KeyEvent.KEYCODE_DPAD_DOWN -> Triple(screenWidth * 0.15f, yOffset + playerHeight * 0.70f, idOffset + 7)
+            KeyEvent.KEYCODE_DPAD_LEFT -> Triple(screenWidth * 0.05f, yOffset + playerHeight * 0.50f, idOffset + 8)
+            KeyEvent.KEYCODE_DPAD_RIGHT -> Triple(screenWidth * 0.25f, yOffset + playerHeight * 0.50f, idOffset + 9)
             else -> return
         }
 
@@ -521,34 +523,36 @@ class InputBridgeService : Service(), InputManager.InputDeviceListener {
         return Pair(offsetX, offsetY)
     }
 
-    private fun processPlayer2Axes(event: MotionEvent) {
+    private fun processPlayerAxes(event: MotionEvent, player: Int) {
         val screenWidth = resources.displayMetrics.widthPixels.toFloat()
         val screenHeight = resources.displayMetrics.heightPixels.toFloat()
-        val yOffset = screenHeight / 2f
+        
+        val yOffset = if (player == 1) 0f else screenHeight / 2f
         val playerHeight = screenHeight / 2f
+        val baseId = if (player == 1) 30 else 40 // Distinct IDs for axes
 
-        // LS: Move (ID 1) - Anchor at X: 15%, Y: 75% of bottom screen
+        // LS: Move - Anchor at X: 15%, Y: 50% of the player's screen half
         val lsX = event.getX()
         val lsY = event.getY()
         val lsOffset = applyRadialSmoothing(lsX, lsY, screenWidth * 0.1f, playerHeight * 0.2f)
         if (lsOffset.first != 0f || lsOffset.second != 0f) {
             val tx = (screenWidth * 0.15f) + lsOffset.first
-            val ty = yOffset + (playerHeight * 0.75f) + lsOffset.second
-            updatePointerState(1, tx, ty, true)
+            val ty = yOffset + (playerHeight * 0.5f) + lsOffset.second
+            updatePointerState(baseId + 1, tx, ty, true)
         } else {
-            updatePointerState(1, 0f, 0f, false)
+            updatePointerState(baseId + 1, 0f, 0f, false)
         }
 
-        // RS: Look (ID 2) - Anchor at X: 75%, Y: 50% of bottom screen
+        // RS: Look - Anchor at X: 75%, Y: 50% of the player's screen half
         val rsX = event.getAxisValue(MotionEvent.AXIS_Z)
         val rsY = event.getAxisValue(MotionEvent.AXIS_RZ)
         val rsOffset = applyRadialSmoothing(rsX, rsY, screenWidth * 0.2f, playerHeight * 0.3f)
         if (rsOffset.first != 0f || rsOffset.second != 0f) {
             val tx = (screenWidth * 0.75f) + rsOffset.first
             val ty = yOffset + (playerHeight * 0.5f) + rsOffset.second
-            updatePointerState(2, tx, ty, true)
+            updatePointerState(baseId + 2, tx, ty, true)
         } else {
-            updatePointerState(2, 0f, 0f, false)
+            updatePointerState(baseId + 2, 0f, 0f, false)
         }
     }
 

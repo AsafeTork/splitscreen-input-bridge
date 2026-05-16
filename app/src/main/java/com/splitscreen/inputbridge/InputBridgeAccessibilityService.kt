@@ -82,19 +82,15 @@ class InputBridgeAccessibilityService : AccessibilityService() {
         // --- SELECTIVE INTERCEPTION ---
         val playerNumber = service.getPlayerForDevice(event.deviceId)
         
-        if (playerNumber == 1) {
-            // Player 1 is focused. Pass through natively.
-            return false
-        }
-        
-        if (playerNumber == 2) {
-            // Player 2 is in background. Translate to Touch.
-            service.onGamepadKeyEvent(event)
+        if (playerNumber == 1 || playerNumber == 2) {
+            // Full Touch Emulation for BOTH players to prevent Focus Stealing
+            service.onGamepadKeyEvent(event, playerNumber)
             return true
         }
 
         return false
     }
+
 
     /**
      * Intercepts analog axis motion events (joysticks, triggers).
@@ -104,12 +100,11 @@ class InputBridgeAccessibilityService : AccessibilityService() {
         val service = bridgeService ?: return
         
         val playerNumber = service.getPlayerForDevice(event.deviceId)
-        if (playerNumber == 1) return // Pass through natively
-        
-        if (playerNumber == 2) {
-            service.onGamepadMotionEvent(event)
+        if (playerNumber == 1 || playerNumber == 2) {
+            service.onGamepadMotionEvent(event, playerNumber)
         }
     }
+
 
     /**
      * Converts a gamepad button KeyEvent into a synthetic MotionEvent for unified processing.

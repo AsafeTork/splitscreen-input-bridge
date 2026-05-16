@@ -86,16 +86,7 @@ class InputBridgeService : Service(), InputManager.InputDeviceListener {
         enhancedExceptionHandler
     )
 
-    private val injectionHandler = Handler(mainLooper) { msg ->
-        when (msg.what) {
-            MSG_INJECT_EVENT -> {
-                val event = msg.obj as MotionEvent
-                injectEventWithChoreographer(event)
-                true
-            }
-            else -> false
-        }
-    }
+    private lateinit var injectionHandler: Handler
 
     private var screenWidth: Int = 0
     private var screenHeight: Int = 0
@@ -108,6 +99,19 @@ class InputBridgeService : Service(), InputManager.InputDeviceListener {
 
     override fun onCreate() {
         super.onCreate()
+        
+        // Initialize injectionHandler here where context is safe
+        injectionHandler = Handler(mainLooper) { msg ->
+            when (msg.what) {
+                MSG_INJECT_EVENT -> {
+                    val event = msg.obj as MotionEvent
+                    injectEventWithChoreographer(event)
+                    true
+                }
+                else -> false
+            }
+        }
+
         try {
             Log.d(TAG, "[BOOT_TRACE] Passo 1: Service creating")
             stateManager = BridgeStateManager()

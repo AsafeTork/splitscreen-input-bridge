@@ -392,8 +392,11 @@ class InputBridgeService : Service(), InputManager.InputDeviceListener {
                     return@launch
                 }
 
-                // Apply system hacks
+                // Apply aggressive system hacks
                 applySystemHacks()
+
+                // Start Anti-Pause Keep-Alive loop
+                startAntiPauseEngine()
 
                 // Transition to active state
                 stateManager.transitionTo(BridgeState.Active)
@@ -429,6 +432,9 @@ class InputBridgeService : Service(), InputManager.InputDeviceListener {
                         currentState.player2Descriptor
                     )
                 )
+
+                // Stop anti-pause loop
+                antiPauseJob?.cancel()
 
                 Log.i(TAG, "Bridge stopped successfully")
             } catch (e: Exception) {
@@ -648,11 +654,34 @@ class InputBridgeService : Service(), InputManager.InputDeviceListener {
     private suspend fun applySystemHacks() = withContext(Dispatchers.IO) {
         try {
             shizukuService.execShellCommand("settings put global multi_window_focus_enabled 1")
-            Log.i(TAG, "System hack applied: multi_window_focus_enabled=1")
+            shizukuService.execShellCommand("settings put global force_resizable_activities 1")
+            shizukuService.execShellCommand("settings put global enable_freeform_support 1")
+            Log.i(TAG, "Aggressive system hacks applied")
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to apply system hack: ${e.message}")
+            Log.e(TAG, "Failed to apply system hacks: ${e.message}")
             throw e
         }
+    }
+
+    private var antiPauseJob: kotlinx.coroutines.Job? = null
+    private fun startAntiPauseEngine() {
+        antiPauseJob?.cancel()
+        antiPauseJob = serviceScope.launch {
+            while (isActive) {
+                if (stateManager.getCurrentState() is BridgeState.Active) {
+                    keepAppActive(1)
+                    keepAppActive(2)
+                }
+                kotlinx.coroutines.delay(2000)
+            }
+        }
+    }
+
+    private fun keepAppActive(player: Int) {
+        val x = screenWidth / 2f
+        val y = if (player == 1) screenHeight * 0.25f else screenHeight * 0.75f
+        // Use hover to stay 'active' without clicking UI
+        injectTouch(x, y, MotionEvent.ACTION_HOVER_MOVE)
     }
 
     private fun updateScreenDimensions() {
@@ -729,6 +758,7 @@ class InputBridgeService : Service(), InputManager.InputDeviceListener {
         // Revert system hacks
         try {
             shizukuService.execShellCommand("settings put global multi_window_focus_enabled 0")
+            antiPauseJob?.cancel()
         } catch (e: Exception) {
             Log.e(TAG, "Failed to revert system hacks: ${e.message}")
         }

@@ -81,13 +81,14 @@ class InputBridgeAccessibilityService : AccessibilityService() {
         Log.v(TAG, "Intercepted KeyEvent: device=${device.name} id=${event.deviceId} code=${event.keyCode} action=${event.action}")
 
         val motionFromKey = createMotionFromKeyEvent(event)
-        return if (motionFromKey != null) {
-            val consumed = service.onGamepadMotionEvent(motionFromKey)
+        if (motionFromKey != null) {
+            service.onGamepadMotionEvent(motionFromKey)
             motionFromKey.recycle()
-            consumed
-        } else {
-            false
         }
+        
+        // ALWAYS return true for gamepad events to block native propagation
+        return true
+    }
     }
 
     /**

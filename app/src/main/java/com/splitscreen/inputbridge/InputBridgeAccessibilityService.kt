@@ -78,16 +78,22 @@ class InputBridgeAccessibilityService : AccessibilityService() {
         }
 
         val device = android.view.InputDevice.getDevice(event.deviceId) ?: return false
-        Log.v(TAG, "Intercepted KeyEvent: device=${device.name} id=${event.deviceId} code=${event.keyCode} action=${event.action}")
-
-        val motionFromKey = createMotionFromKeyEvent(event)
-        if (motionFromKey != null) {
-            service.onGamepadMotionEvent(motionFromKey)
-            motionFromKey.recycle()
+        
+        // --- SELECTIVE INTERCEPTION ---
+        val playerNumber = service.getPlayerForDevice(event.deviceId)
+        
+        if (playerNumber == 1) {
+            // Player 1 is focused. Pass through natively.
+            return false
         }
         
-    // ALWAYS return true for gamepad events to block native propagation
-        return true
+        if (playerNumber == 2) {
+            // Player 2 is in background. Translate to Touch.
+            service.onGamepadKeyEvent(event)
+            return true
+        }
+
+        return false
     }
 
     /**
@@ -96,8 +102,13 @@ class InputBridgeAccessibilityService : AccessibilityService() {
      */
     override fun onMotionEvent(event: MotionEvent) {
         val service = bridgeService ?: return
-        Log.v(TAG, "Intercepted MotionEvent: deviceId=${event.deviceId} action=${event.action}")
-        service.onGamepadMotionEvent(event)
+        
+        val playerNumber = service.getPlayerForDevice(event.deviceId)
+        if (playerNumber == 1) return // Pass through natively
+        
+        if (playerNumber == 2) {
+            service.onGamepadMotionEvent(event)
+        }
     }
 
     /**

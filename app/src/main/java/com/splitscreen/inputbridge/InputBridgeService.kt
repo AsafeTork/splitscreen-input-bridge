@@ -87,6 +87,7 @@ class InputBridgeService : Service(), InputManager.InputDeviceListener {
     )
 
     private lateinit var injectionHandler: Handler
+    private val deviceToPlayerMap = mutableMapOf<String, Int>()
 
     private var screenWidth: Int = 0
     private var screenHeight: Int = 0
@@ -447,32 +448,120 @@ class InputBridgeService : Service(), InputManager.InputDeviceListener {
      * Called from the InputBridgeAccessibilityService or a raw InputReader hook
      * whenever a MotionEvent arrives from any gamepad device.
      */
-    private val deviceToPlayerMap = mutableMapOf<String, Int>() // descriptor -> playerNumber
-
-    fun onGamepadMotionEvent(event: MotionEvent): Boolean {
-        val currentState = stateManager.getCurrentState()
-        if (currentState !is BridgeState.Active) return false
-
-        val device = android.view.InputDevice.getDevice(event.deviceId) ?: return false
-        val descriptor = device.descriptor ?: event.deviceId.toString()
+    fun getPlayerForDevice(deviceId: Int): Int {
+        val device = android.view.InputDevice.getDevice(deviceId) ?: return -1
+        val descriptor = device.descriptor ?: deviceId.toString()
         
-        // 1. Dynamic assignment (stable by descriptor)
+        // Assignment logic
         if (!deviceToPlayerMap.containsKey(descriptor)) {
             val assignedPlayer = if (!deviceToPlayerMap.values.contains(1)) 1 else if (!deviceToPlayerMap.values.contains(2)) 2 else null
             if (assignedPlayer != null) {
                 deviceToPlayerMap[descriptor] = assignedPlayer
-                Log.i(TAG, "SPLIT_DEBUG: Device '${device.name}' ($descriptor) -> Player $assignedPlayer")
-            } else {
-                Log.w(TAG, "SPLIT_DEBUG: Max players reached. Ignoring device '${device.name}'")
-                return false
+                Log.i(TAG, "SPLIT_DEBUG: Assigned Device '${device.name}' -> Player $assignedPlayer")
             }
         }
+        return deviceToPlayerMap[descriptor] ?: -1
+    }
 
-        val playerNumber = deviceToPlayerMap[descriptor] ?: return false
+    fun onGamepadKeyEvent(event: KeyEvent) {
+        val playerNumber = 2 // This is only called for Player 2 from A11y
+        processPlayer2Button(event.keyCode, event.action == KeyEvent.ACTION_DOWN)
+    }
+
+    fun onGamepadMotionEvent(event: MotionEvent) {
+        // This is only called for Player 2 from A11y
+        processPlayer2Axes(event)
+    }
+
+    // --- GEOMETRIC MAPPING & MULTI-TOUCH ENGINE ---
+    
+    private val activePointers = mutableMapOf<Int, MotionEvent.PointerCoords>() // pointerId -> lastCoords
+    private val activeProperties = mutableMapOf<Int, MotionEvent.PointerProperties>()
+
+    private fun processPlayer2Button(keyCode: Int, isDown: Boolean) {
+        // Minecraft Touch HUD Mapping (P2 - Bottom Half)
+        val screenWidth = resources.displayMetrics.widthPixels.toFloat()
+        val screenHeight = resources.displayMetrics.heightPixels.toFloat()
+
+        val (x, y, pointerId) = when (keyCode) {
+            KeyEvent.KEYCODE_BUTTON_A -> Triple(screenWidth * 0.90f, screenHeight * 0.85f, 10) // Jump
+            KeyEvent.KEYCODE_BUTTON_X -> Triple(screenWidth * 0.90f, screenHeight * 0.60f, 11) // Inventory
+            KeyEvent.KEYCODE_BUTTON_R1, KeyEvent.KEYCODE_BUTTON_R2 -> Triple(screenWidth * 0.75f, screenHeight * 0.75f, 12) // Attack
+            KeyEvent.KEYCODE_BUTTON_L1, KeyEvent.KEYCODE_BUTTON_L2 -> Triple(screenWidth * 0.25f, screenHeight * 0.75f, 13) // Use
+            else -> return
+        }
+
+        updatePointerState(pointerId, x, y, isDown)
+    }
+
+    private fun processPlayer2Axes(event: MotionEvent) {
+        val screenWidth = resources.displayMetrics.widthPixels.toFloat()
+        val screenHeight = resources.displayMetrics.heightPixels.toFloat()
+        val yOffset = screenHeight / 2f
+        val playerHeight = screenHeight / 2f
+
+        // LS: Move (ID 1)
+        val lsX = event.getX()
+        val lsY = event.getY()
+        if (Math.abs(lsX) > DEADZONE_THRESHOLD || Math.abs(lsY) > DEADZONE_THRESHOLD) {
+            val tx = (screenWidth * 0.15f) + (lsX * (screenWidth * 0.1f))
+            val ty = yOffset + (playerHeight * 0.75f) + (lsY * (playerHeight * 0.2f))
+            updatePointerState(1, tx, ty, true)
+        } else {
+            updatePointerState(1, 0f, 0f, false)
+        }
+
+        // RS: Look (ID 2)
+        val rsX = event.getAxisValue(MotionEvent.AXIS_Z)
+        val rsY = event.getAxisValue(MotionEvent.AXIS_RZ)
+        if (Math.abs(rsX) > DEADZONE_THRESHOLD || Math.abs(rsY) > DEADZONE_THRESHOLD) {
+            val tx = (screenWidth * 0.75f) + (rsX * (screenWidth * 0.2f))
+            val ty = yOffset + (playerHeight * 0.5f) + (rsY * (playerHeight * 0.3f))
+            updatePointerState(2, tx, ty, true)
+        } else {
+            updatePointerState(2, 0f, 0f, false)
+        }
+    }
+
+    private fun updatePointerState(id: Int, x: Float, y: Float, isDown: Boolean) {
+        if (isDown) {
+            val coords = MotionEvent.PointerCoords().apply {
+                this.x = x
+                this.y = y
+                pressure = 1f
+            }
+            val props = MotionEvent.PointerProperties().apply {
+                this.id = id
+                toolType = MotionEvent.TOOL_TYPE_FINGER
+            }
+            activePointers[id] = coords
+            activeProperties[id] = props
+        } else {
+            activePointers.remove(id)
+            activeProperties.remove(id)
+        }
         
-        // 2. Comprehensive Input Processing
-        processAndInjectEvent(event, playerNumber)
-        return true
+        syncMultiTouch()
+    }
+
+    private fun syncMultiTouch() {
+        if (activePointers.isEmpty()) return
+
+        val now = System.currentTimeMillis()
+        val pointerCount = activePointers.size
+        val propsArray = activeProperties.values.toTypedArray()
+        val coordsArray = activePointers.values.toTypedArray()
+
+        // We use ACTION_MOVE as the base for multi-touch sync
+        // Android will handle DOWN/UP internally based on pointer count changes
+        val event = MotionEvent.obtain(
+            now, now, MotionEvent.ACTION_MOVE,
+            pointerCount, propsArray, coordsArray,
+            0, 0, 1f, 1f, 0, 0,
+            android.view.InputDevice.SOURCE_TOUCHSCREEN, 0
+        )
+        
+        injectionChannel.trySend(event)
     }
 
     private val lsActive = mutableMapOf<Int, Boolean>() // player -> active
@@ -786,6 +875,8 @@ class InputBridgeService : Service(), InputManager.InputDeviceListener {
     private fun updateNotification(status: String) {
         getSystemService(NotificationManager::class.java)
             .notify(NOTIF_ID, buildNotification(status))
+    }
+
     }
 
     override fun onInputDeviceAdded(deviceId: Int) {

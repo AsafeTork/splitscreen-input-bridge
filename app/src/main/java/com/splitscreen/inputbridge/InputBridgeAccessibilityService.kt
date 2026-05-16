@@ -56,6 +56,16 @@ class InputBridgeAccessibilityService : AccessibilityService() {
             flags = flags or
                     AccessibilityServiceInfo.FLAG_REQUEST_FILTER_KEY_EVENTS or
                     AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS
+            
+            // API 31+ / 33+ motion event interception
+            try {
+                val motionSourcesField = AccessibilityServiceInfo::class.java.getDeclaredField("motionEventSources")
+                motionSourcesField.isAccessible = true
+                motionSourcesField.set(this, android.view.InputDevice.SOURCE_GAMEPAD or android.view.InputDevice.SOURCE_JOYSTICK)
+                Log.d(TAG, "Programmatically set motionEventSources for gamepad/joystick")
+            } catch (e: Exception) {
+                Log.w(TAG, "Failed to set motionEventSources programmatically: ${e.message}")
+            }
         }
 
         val intent = Intent(this, InputBridgeService::class.java)

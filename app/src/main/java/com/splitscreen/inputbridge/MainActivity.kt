@@ -305,8 +305,16 @@ class MainActivity : ComponentActivity(), InputManager.InputDeviceListener {
 
     private fun checkShizukuPermission() {
         try {
-            val isBinderAlive = Shizuku.pingBinder()
-            val isPermissionGranted = Shizuku.checkSelfPermission() == android.content.pm.PackageManager.PERMISSION_GRANTED
+            val isBinderAlive = try { Shizuku.pingBinder() } catch (e: Exception) { false }
+            val isPermissionGranted = if (isBinderAlive) {
+                try {
+                    Shizuku.checkSelfPermission() == android.content.pm.PackageManager.PERMISSION_GRANTED
+                } catch (e: Exception) {
+                    false
+                }
+            } else {
+                false
+            }
             val isAccessibilityEnabled = isAccessibilityServiceEnabled(this)
 
             tsLog("CHECK", "binderAlive=$isBinderAlive permissionGranted=$isPermissionGranted accessibilityEnabled=$isAccessibilityEnabled")

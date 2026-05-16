@@ -17,9 +17,10 @@ import kotlinx.coroutines.withContext
  */
 class WatchdogWorker(
     context: Context,
-    workerParams: WorkerParameters,
-    private val shizukuService: ShizukuServiceInterface
+    workerParams: WorkerParameters
 ) : CoroutineWorker(context, workerParams) {
+
+    private val shizukuService: com.splitscreen.inputbridge.repository.ShizukuServiceInterface = com.splitscreen.inputbridge.repository.ShizukuServiceRepository()
 
     companion object {
         private const val TAG = "WatchdogWorker"

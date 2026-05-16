@@ -439,9 +439,11 @@ class InputBridgeService : Service(), InputManager.InputDeviceListener {
 
         val device = InputDevice.getDevice(event.deviceId) ?: return false
 
-        return when (val player1Desc = controllerRegistry.controllersState.value.player1Descriptor) {
-            device.descriptor -> false // Player 1 - pass natively
-            controllerRegistry.controllersState.value.player2Descriptor -> {
+        val player2Desc = controllerRegistry.controllersState.value.player2Descriptor
+
+        return when (device.descriptor) {
+            controllerRegistry.controllersState.value.player1Descriptor -> false // Player 1 - pass natively
+            player2Desc -> {
                 injectTransformedEvent(event)
                 true
             }
@@ -517,7 +519,6 @@ class InputBridgeService : Service(), InputManager.InputDeviceListener {
         )
 
         // Track injection metrics
-        val injectionStartTime = System.nanoTime()
         performanceMetrics.onInjectionStarted()
 
         val message = injectionHandler.obtainMessage(MSG_INJECT_EVENT, syntheticEvent)
@@ -654,7 +655,7 @@ class InputBridgeService : Service(), InputManager.InputDeviceListener {
         inputManager.unregisterInputDeviceListener(this)
 
         // Stop foreground service
-        stopForeground(true)
+        stopForeground(STOP_FOREGROUND_REMOVE)
 
         Log.i(TAG, "InputBridgeService destroyed, system hacks reverted")
     }

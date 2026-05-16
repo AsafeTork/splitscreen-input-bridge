@@ -48,11 +48,6 @@ object ShizukuUserService {
      * Shizuku's process context holds this permission, making injection possible.
      */
     fun injectInputEvent(event: InputEvent): Boolean {
-        if (event == null) {
-            Log.e(TAG, "injectInputEvent: event is null")
-            return false
-        }
-
         return try {
             val inputManagerClass = Class.forName("android.hardware.input.InputManager")
             val instanceMethod = inputManagerClass.getDeclaredMethod("getInstance")

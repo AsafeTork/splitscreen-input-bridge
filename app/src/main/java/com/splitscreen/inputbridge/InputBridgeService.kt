@@ -877,8 +877,6 @@ class InputBridgeService : Service(), InputManager.InputDeviceListener {
             .notify(NOTIF_ID, buildNotification(status))
     }
 
-    }
-
     override fun onInputDeviceAdded(deviceId: Int) {
         Log.d(TAG, "Input device added: $deviceId")
         controllerRegistry.refreshConnectedDevices()

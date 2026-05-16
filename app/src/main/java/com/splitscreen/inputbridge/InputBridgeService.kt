@@ -452,21 +452,21 @@ class InputBridgeService : Service(), InputManager.InputDeviceListener {
         if (!deviceToPlayerMap.containsKey(deviceId)) {
             if (!deviceToPlayerMap.values.contains(1)) {
                 deviceToPlayerMap[deviceId] = 1
-                Log.i(TAG, "Dynamic Mapping: Device $deviceId assigned to Player 1 (TOP)")
+                Log.i(TAG, "DYNAMIC_MAP: Device $deviceId -> Player 1 (TOP)")
             } else if (!deviceToPlayerMap.values.contains(2)) {
                 deviceToPlayerMap[deviceId] = 2
-                Log.i(TAG, "Dynamic Mapping: Device $deviceId assigned to Player 2 (BOTTOM)")
+                Log.i(TAG, "DYNAMIC_MAP: Device $deviceId -> Player 2 (BOTTOM)")
             } else {
-                return false // Third device or more? Ignore for now.
+                Log.w(TAG, "DYNAMIC_MAP: Device $deviceId ignored (max players reached)")
+                return false
             }
         }
 
         val playerNumber = deviceToPlayerMap[deviceId] ?: return false
         
-        // Redirect events for both players to their respective screen halves
-        // This ensures focus-independent control
+        Log.v(TAG, "PROCESS_INPUT: Player $playerNumber (Device $deviceId) injecting event")
         injectTransformedEvent(event, playerNumber)
-        return true // Consume event so it doesn't reach the system's focused window natively
+        return true
     }
 
     private fun injectTransformedEvent(source: MotionEvent, playerNumber: Int) {

@@ -57,15 +57,9 @@ class InputBridgeAccessibilityService : AccessibilityService() {
                     AccessibilityServiceInfo.FLAG_REQUEST_FILTER_KEY_EVENTS or
                     AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS
             
-            // API 31+ / 33+ motion event interception
-            try {
-                val motionSourcesField = AccessibilityServiceInfo::class.java.getDeclaredField("motionEventSources")
-                motionSourcesField.isAccessible = true
-                motionSourcesField.set(this, android.view.InputDevice.SOURCE_GAMEPAD or android.view.InputDevice.SOURCE_JOYSTICK)
-                Log.d(TAG, "Programmatically set motionEventSources for gamepad/joystick")
-            } catch (e: Exception) {
-                Log.w(TAG, "Failed to set motionEventSources programmatically: ${e.message}")
-            }
+            // API 33+ motion event interception - this BLOCKS native events from the rest of the system
+            motionEventSources = android.view.InputDevice.SOURCE_GAMEPAD or android.view.InputDevice.SOURCE_JOYSTICK
+            Log.d(TAG, "Native motion events blocked for Gamepad/Joystick (API 33+)")
         }
 
         val intent = Intent(this, InputBridgeService::class.java)
@@ -78,10 +72,13 @@ class InputBridgeAccessibilityService : AccessibilityService() {
      * Returns true to consume (block) the event for Player 2's gamepad.
      */
     override fun onKeyEvent(event: KeyEvent): Boolean {
-        val service = bridgeService ?: return false
+        val service = bridgeService ?: run {
+            Log.w(TAG, "onKeyEvent: BridgeService not connected")
+            return false
+        }
 
         val device = android.view.InputDevice.getDevice(event.deviceId) ?: return false
-        Log.v(TAG, "onKeyEvent: device=${device.name} descriptor=${device.descriptor} action=${event.action} keyCode=${event.keyCode}")
+        Log.v(TAG, "Intercepted KeyEvent: device=${device.name} id=${event.deviceId} code=${event.keyCode} action=${event.action}")
 
         val motionFromKey = createMotionFromKeyEvent(event)
         return if (motionFromKey != null) {
@@ -99,6 +96,7 @@ class InputBridgeAccessibilityService : AccessibilityService() {
      */
     override fun onMotionEvent(event: MotionEvent) {
         val service = bridgeService ?: return
+        Log.v(TAG, "Intercepted MotionEvent: deviceId=${event.deviceId} action=${event.action}")
         service.onGamepadMotionEvent(event)
     }
 

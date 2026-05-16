@@ -86,9 +86,8 @@ class InputBridgeAccessibilityService : AccessibilityService() {
             motionFromKey.recycle()
         }
         
-        // ALWAYS return true for gamepad events to block native propagation
+    // ALWAYS return true for gamepad events to block native propagation
         return true
-    }
     }
 
     /**

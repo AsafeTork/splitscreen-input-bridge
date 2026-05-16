@@ -88,9 +88,6 @@ class InputBridgeService : Service(), InputManager.InputDeviceListener {
 
     private lateinit var injectionHandler: Handler
 
-    // Dynamic mapping for device ID to player number
-    private val deviceToPlayerMap = mutableMapOf<Int, Int>()
-
     private var screenWidth: Int = 0
     private var screenHeight: Int = 0
     private var screenDensity: Float = 1.0f

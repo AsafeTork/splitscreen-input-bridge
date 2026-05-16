@@ -88,6 +88,9 @@ class InputBridgeService : Service(), InputManager.InputDeviceListener {
 
     private lateinit var injectionHandler: Handler
 
+    // Dynamic mapping for device ID to player number
+    private val deviceToPlayerMap = mutableMapOf<Int, Int>()
+
     private var screenWidth: Int = 0
     private var screenHeight: Int = 0
     private var screenDensity: Float = 1.0f
@@ -373,6 +376,9 @@ class InputBridgeService : Service(), InputManager.InputDeviceListener {
                     return@launch
                 }
 
+                // Clear dynamic mappings when starting a fresh bridge session
+                deviceToPlayerMap.clear()
+
                 // Validate configuration
                 if (!currentState.isFullyConfigured) {
                     Log.w(TAG, "Cannot start bridge: controllers not fully configured")
@@ -411,6 +417,9 @@ class InputBridgeService : Service(), InputManager.InputDeviceListener {
 
                 // Stop watchdog
                 watchdogManager.stopWatchdog()
+                
+                // Clear dynamic mappings
+                deviceToPlayerMap.clear()
 
                 // Transition to ready state (keep controller assignments)
                 val currentState = controllerRegistry.controllersState.value
@@ -437,21 +446,30 @@ class InputBridgeService : Service(), InputManager.InputDeviceListener {
         val currentState = stateManager.getCurrentState()
         if (currentState !is BridgeState.Active) return false
 
-        val device = InputDevice.getDevice(event.deviceId) ?: return false
-
-        val player2Desc = controllerRegistry.controllersState.value.player2Descriptor
-
-        return when (device.descriptor) {
-            controllerRegistry.controllersState.value.player1Descriptor -> false // Player 1 - pass natively
-            player2Desc -> {
-                injectTransformedEvent(event)
-                true
+        val deviceId = event.deviceId
+        
+        // Dynamic assignment: first device to send events is Player 1, second is Player 2
+        if (!deviceToPlayerMap.containsKey(deviceId)) {
+            if (!deviceToPlayerMap.values.contains(1)) {
+                deviceToPlayerMap[deviceId] = 1
+                Log.i(TAG, "Dynamic Mapping: Device $deviceId assigned to Player 1 (TOP)")
+            } else if (!deviceToPlayerMap.values.contains(2)) {
+                deviceToPlayerMap[deviceId] = 2
+                Log.i(TAG, "Dynamic Mapping: Device $deviceId assigned to Player 2 (BOTTOM)")
+            } else {
+                return false // Third device or more? Ignore for now.
             }
-            else -> false
         }
+
+        val playerNumber = deviceToPlayerMap[deviceId] ?: return false
+        
+        // Redirect events for both players to their respective screen halves
+        // This ensures focus-independent control
+        injectTransformedEvent(event, playerNumber)
+        return true // Consume event so it doesn't reach the system's focused window natively
     }
 
-    private fun injectTransformedEvent(source: MotionEvent) {
+    private fun injectTransformedEvent(source: MotionEvent, playerNumber: Int) {
         updateScreenDimensions()
 
         val axisX = source.getAxisValue(MotionEvent.AXIS_X)
@@ -487,9 +505,17 @@ class InputBridgeService : Service(), InputManager.InputDeviceListener {
         lastAxisY = axisY
         lastFrameTime = currentTime
 
-        // Apply coordinate transformation with predicted values
+        // Apply coordinate transformation based on player number
         val touchX = ((clampedAxisX + 1.0f) / 2.0f) * screenWidth
-        val touchY = (screenHeight / 2f) + ((clampedAxisY + 1.0f) / 2.0f) * (screenHeight / 2f)
+        
+        // Map Y coordinate based on split-screen position
+        val touchY = if (playerNumber == 1) {
+            // Player 1: Top half (0% to 50%)
+            ((clampedAxisY + 1.0f) / 2.0f) * (screenHeight / 2f)
+        } else {
+            // Player 2: Bottom half (50% to 100%)
+            (screenHeight / 2f) + ((clampedAxisY + 1.0f) / 2.0f) * (screenHeight / 2f)
+        }
 
         val action = if (axisTriggerL > 0.5f) MotionEvent.ACTION_DOWN else MotionEvent.ACTION_MOVE
 
@@ -642,6 +668,7 @@ class InputBridgeService : Service(), InputManager.InputDeviceListener {
         // Cleanup architecture components
         watchdogManager.cleanup()
         controllerRegistry.cleanup()
+        deviceToPlayerMap.clear()
         serviceScope.cancel()
 
         // Revert system hacks

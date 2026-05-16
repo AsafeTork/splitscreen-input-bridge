@@ -65,7 +65,7 @@ class MainActivity : ComponentActivity(), InputManager.InputDeviceListener {
     private var bridgeService: InputBridgeService? = null
     private lateinit var shizukuPermissionManager: ShizukuPermissionManager
     private lateinit var shizukuMonitor: ShizukuMonitor
-    private val handler = Handler(Looper.getMainLooper())
+    private lateinit var handler: Handler
     private val permissionCheckRunnable = object : Runnable {
         override fun run() {
             checkShizukuPermission()
@@ -147,6 +147,8 @@ class MainActivity : ComponentActivity(), InputManager.InputDeviceListener {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        
+        handler = Handler(Looper.getMainLooper())
 
         try {
             inputManager = getSystemService(InputManager::class.java)

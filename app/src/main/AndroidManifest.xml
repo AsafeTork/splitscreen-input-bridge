@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <!-- Needed to query all installed apps on Android 11+ -->
+    <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" 
+        tools:ignore="QueryAllPackagesPermission" />
+    
+    <!-- Permissão para solicitar isenção de otimização de bateria -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+    
+    <!-- Permissão para serviço em foreground (Android 14+) -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+
+    <!-- Needed to modify DPI settings (requires ADB grant) -->
+    <uses-permission android:name="android.permission.WRITE_SECURE_SETTINGS" 
+        tools:ignore="ProtectedPermissions" />
+
+    <application
+        android:allowBackup="true"
+        android:icon="@drawable/ic_launcher"
+        android:roundIcon="@drawable/ic_launcher"
+        android:label="Split Screen Manager"
+        android:theme="@style/Theme.SplitScreenManager"
+        android:resizeableActivity="true">
+
+        <!-- Crucial for real Multi-Resume (Android 10+) -->
+        <meta-data 
+            android:name="android.allow_multiple_resumed_activities" 
+            android:value="true" />
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <service
+            android:name=".service.ConsoleForegroundService"
+            android:enabled="true"
+            android:exported="false"
+            android:foregroundServiceType="specialUse" />
+
+        <service
+            android:name=".service.InputAccessibilityService"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/accessibility_service_config" />
+        </service>
+    </application>
+
+</manifest>

@@ -388,7 +388,9 @@ class InputBridgeService : Service(), InputManager.InputDeviceListener {
         var currentProduct = ""
         
         try {
-            file.forEachLine { line ->
+            val reader = file.bufferedReader()
+            var line = reader.readLine()
+            while (line != null) {
                 if (line.startsWith("I:")) {
                     currentVendor = line.substringAfter("Vendor=").substringBefore(" ").lowercase()
                     currentProduct = line.substringAfter("Product=").substringBefore(" ").lowercase()
@@ -403,6 +405,7 @@ class InputBridgeService : Service(), InputManager.InputDeviceListener {
                         val nameMatch = currentName.contains(name) || name.contains(currentName)
                         val idMatch = currentVendor == vendor && currentProduct == product
                         if (nameMatch || idMatch) {
+                            reader.close()
                             return "/dev/input/$currentHandler"
                         }
                     }
@@ -411,7 +414,9 @@ class InputBridgeService : Service(), InputManager.InputDeviceListener {
                     currentVendor = ""
                     currentProduct = ""
                 }
+                line = reader.readLine()
             }
+            reader.close()
         } catch (e: Exception) {
             Log.e(TAG, "Error finding event path for device: ${e.message}")
         }
@@ -596,7 +601,7 @@ class InputBridgeService : Service(), InputManager.InputDeviceListener {
                 try {
                     val p1Desc = currentState.player1Descriptor
                     val p2Desc = currentState.player2Descriptor
-                    val gamepads = android.view.InputDevice.getDeviceIds().mapNotNull { android.view.InputDevice.getDevice(it) }
+                    val gamepads = android.view.InputDevice.getDeviceIds().toList().mapNotNull { android.view.InputDevice.getDevice(it) }
                     for (device in gamepads) {
                         val descriptor = device.descriptor ?: device.id.toString()
                         val eventPath = findEventPathForDevice(device) ?: continue

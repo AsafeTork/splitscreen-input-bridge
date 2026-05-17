@@ -425,7 +425,7 @@ class ShizukuPrivilegedUserService : IShizukuUserService.Stub() {
                     // EVIOCGRAB = 0x40044590
                     val EVIOCGRAB = 0x40044590
                     try {
-                        android.system.Os.ioctlInt(fd, EVIOCGRAB, 1)
+                        ioctlInt(fd, EVIOCGRAB, 1)
                         Log.i(TAG, "Successfully grabbed device $devPath")
                     } catch (e: Exception) {
                         Log.w(TAG, "Could not grab device $devPath: ${e.message}. Reading anyway.")
@@ -458,7 +458,7 @@ class ShizukuPrivilegedUserService : IShizukuUserService.Stub() {
                     fd?.let {
                         try {
                             try {
-                                android.system.Os.ioctlInt(it, 0x40044590, 0)
+                                ioctlInt(it, 0x40044590, 0)
                             } catch (ignored: Exception) {}
                             android.system.Os.close(it)
                         } catch (ignored: Exception) {}
@@ -536,6 +536,22 @@ class ShizukuPrivilegedUserService : IShizukuUserService.Stub() {
             Log.e(TAG, "Error parsing devices file", e)
         }
         return devices
+    }
+
+    private fun ioctlInt(fd: java.io.FileDescriptor, cmd: Int, arg: Int) {
+        try {
+            val osClass = Class.forName("android.system.Os")
+            val method = osClass.getMethod(
+                "ioctlInt",
+                java.io.FileDescriptor::class.java,
+                Int::class.java,
+                Int::class.java
+            )
+            method.invoke(null, fd, cmd, arg)
+        } catch (e: Exception) {
+            Log.e(TAG, "ioctlInt failed via reflection: ${e.message}", e)
+            throw e
+        }
     }
 
     override fun destroy() {

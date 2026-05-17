@@ -1,5 +1,5 @@
 package com.splitscreen.inputbridge;
 
 interface ILinuxInputCallback {
-    void onGamepadEvent(int deviceId, int type, int code, int value);
+    void onGamepadEvent(int player, int type, int code, int value);
 }

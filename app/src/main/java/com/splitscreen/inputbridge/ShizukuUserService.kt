@@ -247,6 +247,12 @@ object ShizukuUserService {
 
     private var privilegedService: IShizukuUserService? = null
     private var pendingCallback: ILinuxInputCallback? = null
+    private var p1Vendor: Int = 0
+    private var p1Product: Int = 0
+    private var p1Name: String = ""
+    private var p2Vendor: Int = 0
+    private var p2Product: Int = 0
+    private var p2Name: String = ""
 
     private val serviceConnection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName?, binder: IBinder?) {
@@ -254,7 +260,9 @@ object ShizukuUserService {
             Log.i(TAG, "PrivilegedUserService connected!")
             pendingCallback?.let {
                 try {
-                    privilegedService?.startLinuxInputReader(it)
+                    privilegedService?.startLinuxInputReader(
+                        it, p1Vendor, p1Product, p1Name, p2Vendor, p2Product, p2Name
+                    )
                 } catch (e: Exception) {
                     Log.e(TAG, "Failed to start Linux input reader", e)
                 }
@@ -266,12 +274,25 @@ object ShizukuUserService {
         }
     }
 
-    fun startLinuxReader(cb: ILinuxInputCallback) {
+    fun startLinuxReader(
+        cb: ILinuxInputCallback,
+        p1V: Int, p1P: Int, p1N: String,
+        p2V: Int, p2P: Int, p2N: String
+    ) {
         Log.i(TAG, "startLinuxReader initiated in App process")
         this.pendingCallback = cb
+        this.p1Vendor = p1V
+        this.p1Product = p1P
+        this.p1Name = p1N
+        this.p2Vendor = p2V
+        this.p2Product = p2P
+        this.p2Name = p2N
+
         if (privilegedService != null) {
             try {
-                privilegedService?.startLinuxInputReader(cb)
+                privilegedService?.startLinuxInputReader(
+                    cb, p1V, p1P, p1N, p2V, p2P, p2N
+                )
             } catch (e: Exception) {
                 Log.e(TAG, "Error starting Linux reader", e)
             }
@@ -390,33 +411,42 @@ class ShizukuPrivilegedUserService : IShizukuUserService.Stub() {
         }
     }
 
-    override fun startLinuxInputReader(cb: ILinuxInputCallback?) {
-        Log.i(TAG, "startLinuxInputReader called")
+    override fun startLinuxInputReader(
+        cb: ILinuxInputCallback?,
+        p1Vendor: Int, p1Product: Int, p1Name: String?,
+        p2Vendor: Int, p2Product: Int, p2Name: String?
+    ) {
+        Log.i(TAG, "startLinuxInputReader called in privileged service")
         this.callback = cb
         if (isRunning) {
             stopLinuxInputReader()
         }
         isRunning = true
 
-        val devices = getGamepadEventDevices()
-        Log.i(TAG, "Found gamepads: $devices")
-        if (devices.isEmpty()) {
-            Log.w(TAG, "No gamepads found in /proc/bus/input/devices. Scanning /dev/input/ directly...")
-            val devInput = java.io.File("/dev/input")
-            if (devInput.exists() && devInput.isDirectory) {
-                devInput.listFiles()?.forEach { file ->
-                    if (file.name.startsWith("event")) {
-                        devices.add(file.absolutePath)
-                    }
-                }
-            }
+        val p1EventNum = findEventNumForDevice(p1Vendor, p1Product, p1Name)
+        val p2EventNum = findEventNumForDevice(p2Vendor, p2Product, p2Name)
+
+        Log.i(TAG, "Mapped Player 1 event number: $p1EventNum")
+        Log.i(TAG, "Mapped Player 2 event number: $p2EventNum")
+
+        val devicesToPlayers = mutableMapOf<Int, Int>()
+        if (p1EventNum != -1) {
+            devicesToPlayers[p1EventNum] = 1
+        }
+        if (p2EventNum != -1) {
+            devicesToPlayers[p2EventNum] = 2
         }
 
-        for (devPath in devices) {
+        if (devicesToPlayers.isEmpty()) {
+            Log.w(TAG, "No gamepads mapped to Player 1 or Player 2 in privileged context!")
+            return
+        }
+
+        for ((eventNum, player) in devicesToPlayers) {
+            val devPath = "/dev/input/event$eventNum"
             val thread = Thread {
                 var fd: java.io.FileDescriptor? = null
                 try {
-                    val eventNum = devPath.substringAfter("event").toIntOrNull() ?: 0
                     fd = android.system.Os.open(devPath, android.system.OsConstants.O_RDONLY, 0)
                     synchronized(activeFds) {
                         activeFds.add(fd)
@@ -426,7 +456,7 @@ class ShizukuPrivilegedUserService : IShizukuUserService.Stub() {
                     val EVIOCGRAB = 0x40044590
                     try {
                         ioctlInt(fd, EVIOCGRAB, 1)
-                        Log.i(TAG, "Successfully grabbed device $devPath")
+                        Log.i(TAG, "Successfully grabbed $devPath for Player $player")
                     } catch (e: Exception) {
                         Log.w(TAG, "Could not grab device $devPath: ${e.message}. Reading anyway.")
                     }
@@ -450,10 +480,10 @@ class ShizukuPrivilegedUserService : IShizukuUserService.Stub() {
                         val code = byteBuf.short.toInt() and 0xFFFF
                         val value = byteBuf.int
 
-                        callback?.onGamepadEvent(eventNum, type, code, value)
+                        callback?.onGamepadEvent(player, type, code, value)
                     }
                 } catch (e: Exception) {
-                    Log.e(TAG, "Error reading from $devPath", e)
+                    Log.e(TAG, "Error reading from $devPath for Player $player", e)
                 } finally {
                     fd?.let {
                         try {
@@ -468,7 +498,7 @@ class ShizukuPrivilegedUserService : IShizukuUserService.Stub() {
                     }
                 }
             }
-            thread.name = "LinuxInputReader-${devPath.substringAfterLast("/")}"
+            thread.name = "LinuxInputReader-event$eventNum"
             thread.start()
             readerThreads.add(thread)
         }
@@ -495,47 +525,53 @@ class ShizukuPrivilegedUserService : IShizukuUserService.Stub() {
         callback = null
     }
 
-    private fun getGamepadEventDevices(): MutableList<String> {
-        val devices = mutableListOf<String>()
+    private fun findEventNumForDevice(vendor: Int, product: Int, name: String?): Int {
         val file = java.io.File("/proc/bus/input/devices")
-        if (!file.exists()) return devices
+        if (!file.exists()) return -1
+
+        val targetVendor = String.format("%04x", vendor).lowercase()
+        val targetProduct = String.format("%04x", product).lowercase()
+        val targetName = name?.lowercase() ?: ""
 
         var currentName = ""
         var currentHandler = ""
+        var currentVendor = ""
+        var currentProduct = ""
+
         try {
-            file.forEachLine { line ->
-                if (line.startsWith("N: Name=")) {
+            val reader = file.bufferedReader()
+            var line = reader.readLine()
+            while (line != null) {
+                if (line.startsWith("I:")) {
+                    currentVendor = line.substringAfter("Vendor=").substringBefore(" ").lowercase()
+                    currentProduct = line.substringAfter("Product=").substringBefore(" ").lowercase()
+                } else if (line.startsWith("N: Name=")) {
                     currentName = line.substringAfter("Name=\"").substringBefore("\"").lowercase()
                 } else if (line.startsWith("H: Handlers=")) {
                     val handlers = line.substringAfter("Handlers=")
                     val parts = handlers.split(" ")
                     currentHandler = parts.firstOrNull { it.startsWith("event") } ?: ""
-                } else if (line.isBlank() || line.startsWith("I:")) {
-                    if (currentName.isNotEmpty() && currentHandler.isNotEmpty()) {
-                        val isGamepad = currentName.contains("gamepad") ||
-                                currentName.contains("controller") ||
-                                currentName.contains("joystick") ||
-                                currentName.contains("xbox") ||
-                                currentName.contains("playstation") ||
-                                currentName.contains("dualshock") ||
-                                currentName.contains("dualsense") ||
-                                currentName.contains("nintendo") ||
-                                currentName.contains("switch") ||
-                                currentName.contains("gamesir") ||
-                                currentName.contains("flydigi") ||
-                                currentName.contains("razer")
-                        if (isGamepad) {
-                            devices.add("/dev/input/$currentHandler")
+                } else if (line.isBlank()) {
+                    if (currentHandler.isNotEmpty()) {
+                        val nameMatch = targetName.isNotEmpty() && (currentName.contains(targetName) || targetName.contains(currentName))
+                        val idMatch = currentVendor == targetVendor && currentProduct == targetProduct
+                        if (nameMatch || idMatch) {
+                            reader.close()
+                            return currentHandler.substringAfter("event").toIntOrNull() ?: -1
                         }
                     }
                     currentName = ""
                     currentHandler = ""
+                    currentVendor = ""
+                    currentProduct = ""
                 }
+                line = reader.readLine()
             }
+            reader.close()
         } catch (e: Exception) {
-            Log.e(TAG, "Error parsing devices file", e)
+            Log.e(TAG, "Error parsing devices file in findEventNumForDevice: ${e.message}")
         }
-        return devices
+        return -1
     }
 
     private fun ioctlInt(fd: java.io.FileDescriptor, cmd: Int, arg: Int) {

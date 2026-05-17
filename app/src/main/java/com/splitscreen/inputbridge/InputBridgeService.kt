@@ -423,8 +423,7 @@ class InputBridgeService : Service(), InputManager.InputDeviceListener {
         return null
     }
 
-    private fun handleLinuxGamepadEvent(deviceId: Int, type: Int, code: Int, value: Int) {
-        val player = getPlayerForEventDevice(deviceId)
+    private fun handleLinuxGamepadEvent(player: Int, type: Int, code: Int, value: Int) {
         if (player == -1) return
 
         if (type == 1) { // EV_KEY
@@ -597,25 +596,35 @@ class InputBridgeService : Service(), InputManager.InputDeviceListener {
                     return@launch
                 }
 
-                // Map currently connected high-level InputDevices to Linux event numbers
+                // Extract gamepad metadata (Name, VendorId, ProductId) for both players
+                var p1Vendor = 0
+                var p1Product = 0
+                var p1Name = ""
+                var p2Vendor = 0
+                var p2Product = 0
+                var p2Name = ""
+
                 try {
                     val p1Desc = currentState.player1Descriptor
                     val p2Desc = currentState.player2Descriptor
                     val gamepads = android.view.InputDevice.getDeviceIds().toList().mapNotNull { android.view.InputDevice.getDevice(it) }
                     for (device in gamepads) {
                         val descriptor = device.descriptor ?: device.id.toString()
-                        val eventPath = findEventPathForDevice(device) ?: continue
-                        val eventNum = eventPath.substringAfter("event").toIntOrNull() ?: continue
                         if (descriptor == p1Desc) {
-                            eventToPlayerMap[eventNum] = 1
-                            Log.i(TAG, "Mapped event$eventNum to Player 1 (Device: ${device.name})")
-                        } else if (descriptor == p2Desc) {
-                            eventToPlayerMap[eventNum] = 2
-                            Log.i(TAG, "Mapped event$eventNum to Player 2 (Device: ${device.name})")
+                            p1Vendor = device.vendorId
+                            p1Product = device.productId
+                            p1Name = device.name ?: ""
+                            Log.i(TAG, "Selected Player 1 controller: Name=$p1Name, Vendor=$p1Vendor, Product=$p1Product")
+                        }
+                        if (descriptor == p2Desc) {
+                            p2Vendor = device.vendorId
+                            p2Product = device.productId
+                            p2Name = device.name ?: ""
+                            Log.i(TAG, "Selected Player 2 controller: Name=$p2Name, Vendor=$p2Vendor, Product=$p2Product")
                         }
                     }
                 } catch (e: Exception) {
-                    Log.e(TAG, "Error pre-mapping devices to events: ${e.message}", e)
+                    Log.e(TAG, "Error extracting gamepad metadata: ${e.message}", e)
                 }
 
                 // Apply aggressive system hacks
@@ -629,11 +638,15 @@ class InputBridgeService : Service(), InputManager.InputDeviceListener {
 
                 // Start Linux Input Reader via Shizuku
                 try {
-                    shizukuService.startLinuxReader(object : ILinuxInputCallback.Stub() {
-                        override fun onGamepadEvent(deviceId: Int, type: Int, code: Int, value: Int) {
-                            handleLinuxGamepadEvent(deviceId, type, code, value)
-                        }
-                    })
+                    shizukuService.startLinuxReader(
+                        object : ILinuxInputCallback.Stub() {
+                            override fun onGamepadEvent(player: Int, type: Int, code: Int, value: Int) {
+                                handleLinuxGamepadEvent(player, type, code, value)
+                            }
+                        },
+                        p1Vendor, p1Product, p1Name,
+                        p2Vendor, p2Product, p2Name
+                    )
                     Log.i(TAG, "Linux Input Reader started successfully")
                 } catch (e: Exception) {
                     Log.e(TAG, "Failed to start Linux Input Reader via Shizuku: ${e.message}", e)

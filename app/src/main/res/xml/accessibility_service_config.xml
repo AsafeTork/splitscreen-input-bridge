@@ -5,5 +5,4 @@
     android:accessibilityFlags="flagDefault|flagRequestFilterKeyEvents"
     android:canRetrieveWindowContent="true"
     android:canRequestFilterKeyEvents="true"
-    android:canObserveGenericMotionEvents="true"
     android:description="@string/accessibility_service_label" />

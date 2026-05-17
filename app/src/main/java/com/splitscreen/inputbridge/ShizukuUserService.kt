@@ -244,13 +244,73 @@ object ShizukuUserService {
             false
         }
     }
+
+    private var privilegedService: IShizukuUserService? = null
+    private var pendingCallback: ILinuxInputCallback? = null
+
+    private val serviceConnection = object : ServiceConnection {
+        override fun onServiceConnected(name: ComponentName?, binder: IBinder?) {
+            privilegedService = IShizukuUserService.Stub.asInterface(binder)
+            Log.i(TAG, "PrivilegedUserService connected!")
+            pendingCallback?.let {
+                try {
+                    privilegedService?.startLinuxInputReader(it)
+                } catch (e: Exception) {
+                    Log.e(TAG, "Failed to start Linux input reader", e)
+                }
+            }
+        }
+        override fun onServiceDisconnected(name: ComponentName?) {
+            privilegedService = null
+            Log.i(TAG, "PrivilegedUserService disconnected")
+        }
+    }
+
+    fun startLinuxReader(cb: ILinuxInputCallback) {
+        Log.i(TAG, "startLinuxReader initiated in App process")
+        this.pendingCallback = cb
+        if (privilegedService != null) {
+            try {
+                privilegedService?.startLinuxInputReader(cb)
+            } catch (e: Exception) {
+                Log.e(TAG, "Error starting Linux reader", e)
+            }
+        } else {
+            try {
+                Shizuku.bindUserService(
+                    ShizukuPrivilegedUserService.createArgs(),
+                    serviceConnection
+                )
+                Log.i(TAG, "Shizuku.bindUserService called successfully")
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to bind privileged user service", e)
+            }
+        }
+    }
+
+    fun stopLinuxReader() {
+        Log.i(TAG, "stopLinuxReader initiated in App process")
+        this.pendingCallback = null
+        try {
+            privilegedService?.stopLinuxInputReader()
+            Shizuku.unbindUserService(
+                ShizukuPrivilegedUserService.createArgs(),
+                serviceConnection,
+                true
+            )
+            Log.i(TAG, "Shizuku.unbindUserService called")
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to unbind privileged user service", e)
+        }
+        privilegedService = null
+    }
 }
 
 /**
  * IUserService — Remote user service interface for running inside the Shizuku process.
  *
  * For use cases requiring a persistent privileged binder (as opposed to one-shot shell calls),
- * this service can be bound via Shizuku.bindUserService(). It runs with shell UID inside
+* this service can be bound via Shizuku.bindUserService(). It runs with shell UID inside
  * the Shizuku server process, granting access to INJECT_EVENTS and other signature permissions.
  *
  * Lifecycle:
@@ -277,6 +337,11 @@ class ShizukuPrivilegedUserService : IShizukuUserService.Stub() {
     }
 
     private var inputManagerService: Any? = null
+    
+    private var callback: ILinuxInputCallback? = null
+    private val readerThreads = mutableListOf<Thread>()
+    private val activeFds = mutableListOf<java.io.FileDescriptor>()
+    @Volatile private var isRunning = false
 
     override fun onCreate() {
         try {
@@ -325,7 +390,156 @@ class ShizukuPrivilegedUserService : IShizukuUserService.Stub() {
         }
     }
 
+    override fun startLinuxInputReader(cb: ILinuxInputCallback?) {
+        Log.i(TAG, "startLinuxInputReader called")
+        this.callback = cb
+        if (isRunning) {
+            stopLinuxInputReader()
+        }
+        isRunning = true
+
+        val devices = getGamepadEventDevices()
+        Log.i(TAG, "Found gamepads: $devices")
+        if (devices.isEmpty()) {
+            Log.w(TAG, "No gamepads found in /proc/bus/input/devices. Scanning /dev/input/ directly...")
+            val devInput = java.io.File("/dev/input")
+            if (devInput.exists() && devInput.isDirectory) {
+                devInput.listFiles()?.forEach { file ->
+                    if (file.name.startsWith("event")) {
+                        devices.add(file.absolutePath)
+                    }
+                }
+            }
+        }
+
+        for (devPath in devices) {
+            val thread = Thread {
+                var fd: java.io.FileDescriptor? = null
+                try {
+                    val eventNum = devPath.substringAfter("event").toIntOrNull() ?: 0
+                    fd = android.system.Os.open(devPath, android.system.OsConstants.O_RDONLY, 0)
+                    synchronized(activeFds) {
+                        activeFds.add(fd)
+                    }
+
+                    // EVIOCGRAB = 0x40044590
+                    val EVIOCGRAB = 0x40044590
+                    try {
+                        android.system.Os.ioctlInt(fd, EVIOCGRAB, 1)
+                        Log.i(TAG, "Successfully grabbed device $devPath")
+                    } catch (e: Exception) {
+                        Log.w(TAG, "Could not grab device $devPath: ${e.message}. Reading anyway.")
+                    }
+
+                    val structSize = if (android.os.Process.is64Bit()) 24 else 16
+                    val buffer = ByteArray(structSize)
+
+                    while (isRunning) {
+                        var readBytes = 0
+                        while (readBytes < structSize) {
+                            val ret = android.system.Os.read(fd, buffer, readBytes, structSize - readBytes)
+                            if (ret <= 0) break
+                            readBytes += ret
+                        }
+                        if (readBytes < structSize) break
+
+                        val byteBuf = java.nio.ByteBuffer.wrap(buffer).order(java.nio.ByteOrder.LITTLE_ENDIAN)
+                        val sec = if (structSize == 24) byteBuf.long else byteBuf.int.toLong()
+                        val usec = if (structSize == 24) byteBuf.long else byteBuf.int.toLong()
+                        val type = byteBuf.short.toInt() and 0xFFFF
+                        val code = byteBuf.short.toInt() and 0xFFFF
+                        val value = byteBuf.int
+
+                        callback?.onGamepadEvent(eventNum, type, code, value)
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error reading from $devPath", e)
+                } finally {
+                    fd?.let {
+                        try {
+                            try {
+                                android.system.Os.ioctlInt(it, 0x40044590, 0)
+                            } catch (ignored: Exception) {}
+                            android.system.Os.close(it)
+                        } catch (ignored: Exception) {}
+                        synchronized(activeFds) {
+                            activeFds.remove(it)
+                        }
+                    }
+                }
+            }
+            thread.name = "LinuxInputReader-${devPath.substringAfterLast("/")}"
+            thread.start()
+            readerThreads.add(thread)
+        }
+    }
+
+    override fun stopLinuxInputReader() {
+        Log.i(TAG, "stopLinuxInputReader called")
+        isRunning = false
+        synchronized(activeFds) {
+            for (fd in activeFds) {
+                try {
+                    android.system.Os.close(fd)
+                } catch (ignored: Exception) {}
+            }
+            activeFds.clear()
+        }
+        for (thread in readerThreads) {
+            try {
+                thread.interrupt()
+                thread.join(500)
+            } catch (ignored: Exception) {}
+        }
+        readerThreads.clear()
+        callback = null
+    }
+
+    private fun getGamepadEventDevices(): MutableList<String> {
+        val devices = mutableListOf<String>()
+        val file = java.io.File("/proc/bus/input/devices")
+        if (!file.exists()) return devices
+
+        var currentName = ""
+        var currentHandler = ""
+        try {
+            file.forEachLine { line ->
+                if (line.startsWith("N: Name=")) {
+                    currentName = line.substringAfter("Name=\"").substringBefore("\"").lowercase()
+                } else if (line.startsWith("H: Handlers=")) {
+                    val handlers = line.substringAfter("Handlers=")
+                    val parts = handlers.split(" ")
+                    currentHandler = parts.firstOrNull { it.startsWith("event") } ?: ""
+                } else if (line.isBlank() || line.startsWith("I:")) {
+                    if (currentName.isNotEmpty() && currentHandler.isNotEmpty()) {
+                        val isGamepad = currentName.contains("gamepad") ||
+                                currentName.contains("controller") ||
+                                currentName.contains("joystick") ||
+                                currentName.contains("xbox") ||
+                                currentName.contains("playstation") ||
+                                currentName.contains("dualshock") ||
+                                currentName.contains("dualsense") ||
+                                currentName.contains("nintendo") ||
+                                currentName.contains("switch") ||
+                                currentName.contains("gamesir") ||
+                                currentName.contains("flydigi") ||
+                                currentName.contains("razer")
+                        if (isGamepad) {
+                            devices.add("/dev/input/$currentHandler")
+                        }
+                    }
+                    currentName = ""
+                    currentHandler = ""
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error parsing devices file", e)
+        }
+        return devices
+    }
+
     override fun destroy() {
+        stopLinuxInputReader()
         Log.i(TAG, "ShizukuPrivilegedUserService destroyed")
     }
 }

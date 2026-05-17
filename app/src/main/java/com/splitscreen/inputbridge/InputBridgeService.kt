@@ -89,6 +89,7 @@ class InputBridgeService : Service(), InputManager.InputDeviceListener {
 
     private lateinit var injectionHandler: Handler
     private val deviceToPlayerMap = mutableMapOf<String, Int>()
+    private val eventToPlayerMap = mutableMapOf<Int, Int>()
 
     private var screenWidth: Int = 0
     private var screenHeight: Int = 0
@@ -365,6 +366,205 @@ class InputBridgeService : Service(), InputManager.InputDeviceListener {
         }
     }
 
+    private val lsXMap = mutableMapOf<Int, Float>()
+    private val lsYMap = mutableMapOf<Int, Float>()
+    private val rsXMap = mutableMapOf<Int, Float>()
+    private val rsYMap = mutableMapOf<Int, Float>()
+    
+    private val lastDpadX = mutableMapOf<Int, Int>()
+    private val lastDpadY = mutableMapOf<Int, Int>()
+
+    private fun findEventPathForDevice(device: android.view.InputDevice): String? {
+        val name = device.name.lowercase()
+        val vendor = String.format("%04x", device.vendorId)
+        val product = String.format("%04x", device.productId)
+        
+        val file = java.io.File("/proc/bus/input/devices")
+        if (!file.exists()) return null
+        
+        var currentName = ""
+        var currentHandler = ""
+        var currentVendor = ""
+        var currentProduct = ""
+        
+        try {
+            file.forEachLine { line ->
+                if (line.startsWith("I:")) {
+                    currentVendor = line.substringAfter("Vendor=").substringBefore(" ").lowercase()
+                    currentProduct = line.substringAfter("Product=").substringBefore(" ").lowercase()
+                } else if (line.startsWith("N: Name=")) {
+                    currentName = line.substringAfter("Name=\"").substringBefore("\"").lowercase()
+                } else if (line.startsWith("H: Handlers=")) {
+                    val handlers = line.substringAfter("Handlers=")
+                    val parts = handlers.split(" ")
+                    currentHandler = parts.firstOrNull { it.startsWith("event") } ?: ""
+                } else if (line.isBlank()) {
+                    if (currentHandler.isNotEmpty()) {
+                        val nameMatch = currentName.contains(name) || name.contains(currentName)
+                        val idMatch = currentVendor == vendor && currentProduct == product
+                        if (nameMatch || idMatch) {
+                            return "/dev/input/$currentHandler"
+                        }
+                    }
+                    currentName = ""
+                    currentHandler = ""
+                    currentVendor = ""
+                    currentProduct = ""
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error finding event path for device: ${e.message}")
+        }
+        return null
+    }
+
+    private fun handleLinuxGamepadEvent(deviceId: Int, type: Int, code: Int, value: Int) {
+        val player = getPlayerForEventDevice(deviceId)
+        if (player == -1) return
+
+        if (type == 1) { // EV_KEY
+            val androidKey = linuxKeyToAndroidKey(code)
+            if (androidKey != -1) {
+                processPlayerButton(androidKey, value != 0, player)
+            }
+        } else if (type == 3) { // EV_ABS
+            when (code) {
+                0x10 -> { // ABS_HAT0X
+                    val lastVal = lastDpadX[player] ?: 0
+                    if (value == -1) {
+                        processPlayerButton(KeyEvent.KEYCODE_DPAD_LEFT, true, player)
+                        if (lastVal == 1) processPlayerButton(KeyEvent.KEYCODE_DPAD_RIGHT, false, player)
+                    } else if (value == 1) {
+                        processPlayerButton(KeyEvent.KEYCODE_DPAD_RIGHT, true, player)
+                        if (lastVal == -1) processPlayerButton(KeyEvent.KEYCODE_DPAD_LEFT, false, player)
+                    } else {
+                        if (lastVal == -1) processPlayerButton(KeyEvent.KEYCODE_DPAD_LEFT, false, player)
+                        if (lastVal == 1) processPlayerButton(KeyEvent.KEYCODE_DPAD_RIGHT, false, player)
+                    }
+                    lastDpadX[player] = value
+                }
+                0x11 -> { // ABS_HAT0Y
+                    val lastVal = lastDpadY[player] ?: 0
+                    if (value == -1) {
+                        processPlayerButton(KeyEvent.KEYCODE_DPAD_UP, true, player)
+                        if (lastVal == 1) processPlayerButton(KeyEvent.KEYCODE_DPAD_DOWN, false, player)
+                    } else if (value == 1) {
+                        processPlayerButton(KeyEvent.KEYCODE_DPAD_DOWN, true, player)
+                        if (lastVal == -1) processPlayerButton(KeyEvent.KEYCODE_DPAD_UP, false, player)
+                    } else {
+                        if (lastVal == -1) processPlayerButton(KeyEvent.KEYCODE_DPAD_UP, false, player)
+                        if (lastVal == 1) processPlayerButton(KeyEvent.KEYCODE_DPAD_DOWN, false, player)
+                    }
+                    lastDpadY[player] = value
+                }
+                0x00 -> { // LS X
+                    val norm = (value.toFloat() / 32768f).coerceIn(-1f, 1f)
+                    lsXMap[player] = norm
+                    processPlayerAxesNormalized(
+                        lsXMap[player] ?: 0f, lsYMap[player] ?: 0f,
+                        rsXMap[player] ?: 0f, rsYMap[player] ?: 0f,
+                        player
+                    )
+                }
+                0x01 -> { // LS Y
+                    val norm = (value.toFloat() / 32768f).coerceIn(-1f, 1f)
+                    lsYMap[player] = norm
+                    processPlayerAxesNormalized(
+                        lsXMap[player] ?: 0f, lsYMap[player] ?: 0f,
+                        rsXMap[player] ?: 0f, rsYMap[player] ?: 0f,
+                        player
+                    )
+                }
+                0x03, 0x02 -> { // RS X
+                    val norm = (value.toFloat() / 32768f).coerceIn(-1f, 1f)
+                    rsXMap[player] = norm
+                    processPlayerAxesNormalized(
+                        lsXMap[player] ?: 0f, lsYMap[player] ?: 0f,
+                        rsXMap[player] ?: 0f, rsYMap[player] ?: 0f,
+                        player
+                    )
+                }
+                0x04, 0x05 -> { // RS Y
+                    val norm = (value.toFloat() / 32768f).coerceIn(-1f, 1f)
+                    rsYMap[player] = norm
+                    processPlayerAxesNormalized(
+                        lsXMap[player] ?: 0f, lsYMap[player] ?: 0f,
+                        rsXMap[player] ?: 0f, rsYMap[player] ?: 0f,
+                        player
+                    )
+                }
+                0x0a -> { // L2 Trigger
+                    val pressed = value > 50
+                    processPlayerButton(KeyEvent.KEYCODE_BUTTON_L2, pressed, player)
+                }
+                0x09 -> { // R2 Trigger
+                    val pressed = value > 50
+                    processPlayerButton(KeyEvent.KEYCODE_BUTTON_R2, pressed, player)
+                }
+            }
+        }
+    }
+
+    private fun getPlayerForEventDevice(deviceId: Int): Int {
+        var player = eventToPlayerMap[deviceId]
+        if (player == null) {
+            val assignedPlayers = eventToPlayerMap.values
+            player = if (!assignedPlayers.contains(1)) 1 else if (!assignedPlayers.contains(2)) 2 else -1
+            if (player != -1) {
+                eventToPlayerMap[deviceId] = player
+                Log.i(TAG, "Dynamic event$deviceId assigned to Player $player")
+            }
+        }
+        return player ?: -1
+    }
+
+    private fun linuxKeyToAndroidKey(code: Int): Int {
+        return when (code) {
+            0x130 -> KeyEvent.KEYCODE_BUTTON_A
+            0x131 -> KeyEvent.KEYCODE_BUTTON_B
+            0x133 -> KeyEvent.KEYCODE_BUTTON_X
+            0x134 -> KeyEvent.KEYCODE_BUTTON_Y
+            0x136 -> KeyEvent.KEYCODE_BUTTON_L1
+            0x137 -> KeyEvent.KEYCODE_BUTTON_R1
+            0x138 -> KeyEvent.KEYCODE_BUTTON_L2
+            0x139 -> KeyEvent.KEYCODE_BUTTON_R2
+            0x13d -> KeyEvent.KEYCODE_BUTTON_THUMBL
+            0x13e -> KeyEvent.KEYCODE_BUTTON_THUMBR
+            0x13a -> KeyEvent.KEYCODE_BUTTON_SELECT
+            0x13b -> KeyEvent.KEYCODE_BUTTON_START
+            else -> -1
+        }
+    }
+
+    private fun processPlayerAxesNormalized(lsX: Float, lsY: Float, rsX: Float, rsY: Float, player: Int) {
+        val screenWidth = resources.displayMetrics.widthPixels.toFloat()
+        val screenHeight = resources.displayMetrics.heightPixels.toFloat()
+        
+        val yOffset = if (player == 1) 0f else screenHeight / 2f
+        val playerHeight = screenHeight / 2f
+        val baseId = if (player == 1) 30 else 40
+
+        // LS: Move - Anchor at X: 15%, Y: 50%
+        val lsOffset = applyRadialSmoothing(lsX, lsY, screenWidth * 0.1f, playerHeight * 0.2f)
+        if (lsOffset.first != 0f || lsOffset.second != 0f) {
+            val tx = (screenWidth * 0.15f) + lsOffset.first
+            val ty = yOffset + (playerHeight * 0.5f) + lsOffset.second
+            updatePointerState(baseId + 1, tx, ty, true)
+        } else {
+            updatePointerState(baseId + 1, 0f, 0f, false)
+        }
+
+        // RS: Look - Anchor at X: 75%, Y: 50%
+        val rsOffset = applyRadialSmoothing(rsX, rsY, screenWidth * 0.2f, playerHeight * 0.3f)
+        if (rsOffset.first != 0f || rsOffset.second != 0f) {
+            val tx = (screenWidth * 0.75f) + rsOffset.first
+            val ty = yOffset + (playerHeight * 0.5f) + rsOffset.second
+            updatePointerState(baseId + 2, tx, ty, true)
+        } else {
+            updatePointerState(baseId + 2, 0f, 0f, false)
+        }
+    }
+
     fun startBridge() {
         serviceScope.launch {
             try {
@@ -377,6 +577,7 @@ class InputBridgeService : Service(), InputManager.InputDeviceListener {
 
                 // Clear dynamic mappings when starting a fresh bridge session
                 deviceToPlayerMap.clear()
+                eventToPlayerMap.clear()
 
                 // Validate configuration
                 if (!currentState.isFullyConfigured) {
@@ -390,6 +591,28 @@ class InputBridgeService : Service(), InputManager.InputDeviceListener {
                     stateManager.transitionTo(BridgeState.Error("Os dois jogadores não podem usar o mesmo controle"))
                     return@launch
                 }
+
+                // Map currently connected high-level InputDevices to Linux event numbers
+                try {
+                    val p1Desc = currentState.player1Descriptor
+                    val p2Desc = currentState.player2Descriptor
+                    val gamepads = android.view.InputDevice.getDeviceIds().mapNotNull { android.view.InputDevice.getDevice(it) }
+                    for (device in gamepads) {
+                        val descriptor = device.descriptor ?: device.id.toString()
+                        val eventPath = findEventPathForDevice(device) ?: continue
+                        val eventNum = eventPath.substringAfter("event").toIntOrNull() ?: continue
+                        if (descriptor == p1Desc) {
+                            eventToPlayerMap[eventNum] = 1
+                            Log.i(TAG, "Mapped event$eventNum to Player 1 (Device: ${device.name})")
+                        } else if (descriptor == p2Desc) {
+                            eventToPlayerMap[eventNum] = 2
+                            Log.i(TAG, "Mapped event$eventNum to Player 2 (Device: ${device.name})")
+                        }
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error pre-mapping devices to events: ${e.message}", e)
+                }
+
                 // Apply aggressive system hacks
                 applySystemHacks()
 
@@ -398,6 +621,18 @@ class InputBridgeService : Service(), InputManager.InputDeviceListener {
 
                 // Start Injection Pipeline
                 startInjectionPipeline()
+
+                // Start Linux Input Reader via Shizuku
+                try {
+                    shizukuService.startLinuxReader(object : ILinuxInputCallback.Stub() {
+                        override fun onGamepadEvent(deviceId: Int, type: Int, code: Int, value: Int) {
+                            handleLinuxGamepadEvent(deviceId, type, code, value)
+                        }
+                    })
+                    Log.i(TAG, "Linux Input Reader started successfully")
+                } catch (e: Exception) {
+                    Log.e(TAG, "Failed to start Linux Input Reader via Shizuku: ${e.message}", e)
+                }
 
                 // Transition to active state
                 stateManager.transitionTo(BridgeState.Active)
@@ -422,8 +657,17 @@ class InputBridgeService : Service(), InputManager.InputDeviceListener {
                 // Stop watchdog
                 watchdogManager.stopWatchdog()
                 
+                // Stop Linux Input Reader via Shizuku
+                try {
+                    shizukuService.stopLinuxReader()
+                    Log.i(TAG, "Linux Input Reader stopped successfully")
+                } catch (e: Exception) {
+                    Log.e(TAG, "Failed to stop Linux Input Reader: ${e.message}", e)
+                }
+
                 // Clear dynamic mappings
                 deviceToPlayerMap.clear()
+                eventToPlayerMap.clear()
 
                 // Transition to ready state (keep controller assignments)
                 val currentState = controllerRegistry.controllersState.value
@@ -446,6 +690,7 @@ class InputBridgeService : Service(), InputManager.InputDeviceListener {
     }
 
     /**
+
      * Called from the InputBridgeAccessibilityService or a raw InputReader hook
      * whenever a MotionEvent arrives from any gamepad device.
      */

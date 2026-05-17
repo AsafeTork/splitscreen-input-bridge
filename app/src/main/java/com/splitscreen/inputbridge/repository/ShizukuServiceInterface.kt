@@ -44,4 +44,7 @@ interface ShizukuServiceInterface {
      * @return A molecular fingerprint string unique to this device
      */
     fun getDeviceMolecularFingerprint(device: android.view.InputDevice): String
+
+    fun startLinuxReader(callback: com.splitscreen.inputbridge.ILinuxInputCallback)
+    fun stopLinuxReader()
 }

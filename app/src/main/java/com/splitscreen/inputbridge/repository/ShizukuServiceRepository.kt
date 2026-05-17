@@ -67,4 +67,12 @@ class ShizukuServiceRepository : ShizukuServiceInterface {
     override fun getDeviceMolecularFingerprint(device: InputDevice): String {
         return DeviceFingerprintUtil.getEnhancedDeviceDescriptor(device)
     }
+
+    override fun startLinuxReader(callback: com.splitscreen.inputbridge.ILinuxInputCallback) {
+        ShizukuUserService.startLinuxReader(callback)
+    }
+
+    override fun stopLinuxReader() {
+        ShizukuUserService.stopLinuxReader()
+    }
 }

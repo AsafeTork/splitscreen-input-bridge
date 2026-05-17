@@ -315,9 +315,9 @@ class MainActivity : ComponentActivity(), InputManager.InputDeviceListener {
             } else {
                 false
             }
-            val isAccessibilityEnabled = isAccessibilityServiceEnabled(this)
+            val isAccessibilityEnabled = true
 
-            tsLog("CHECK", "binderAlive=$isBinderAlive permissionGranted=$isPermissionGranted accessibilityEnabled=$isAccessibilityEnabled")
+            tsLog("CHECK", "binderAlive=$isBinderAlive permissionGranted=$isPermissionGranted")
 
             // Update UI state if needed
             val currentState = _uiState.value
@@ -326,13 +326,12 @@ class MainActivity : ComponentActivity(), InputManager.InputDeviceListener {
                 shizukuGranted = isPermissionGranted,
                 accessibilityServiceEnabled = isAccessibilityEnabled,
                 // Set troubleshooting flags
-                needsAccessibilitySetup = !isAccessibilityEnabled,
+                needsAccessibilitySetup = false,
                 needsShizukuSetup = isBinderAlive && !isPermissionGranted,
                 // Set specific troubleshooting messages
                 troubleshootingMessage = when {
                     !isBinderAlive -> "📱 Instale e inicie o app Shizuku"
                     !isPermissionGranted -> "🔑 Conceda permissão ao Shizuku no app Shizuku"
-                    !isAccessibilityEnabled -> "⚙️ Habilite o serviço de acessibilidade nas Configurações > Acessibilidade"
                     else -> ""
                 }
             )
@@ -649,7 +648,6 @@ fun StatusCard(state: BridgeUiState, onRequestShizuku: () -> Unit, onRunDiagnost
             StatusRow(label = "Shizuku", ok = state.shizukuAvailable, text = if (state.shizukuAvailable) "Disponível" else "Não encontrado")
             StatusRow(label = "Permissão", ok = state.shizukuGranted, text = if (state.shizukuGranted) "Concedida" else "Pendente")
             StatusRow(label = "Serviço", ok = state.serviceConnected, text = if (state.serviceConnected) "Conectado" else "Desconectado")
-            StatusRow(label = "Acessibilidade", ok = state.accessibilityServiceEnabled, text = if (state.accessibilityServiceEnabled) "Habilitada" else "Desabilitada")
 
             // Show troubleshooting message prominently
             if (state.troubleshootingMessage.isNotEmpty()) {
@@ -692,16 +690,6 @@ fun StatusCard(state: BridgeUiState, onRequestShizuku: () -> Unit, onRunDiagnost
                 }
             }
 
-            // ACTION BUTTONS - Accessibility
-            if (!state.accessibilityServiceEnabled) {
-                Button(
-                    onClick = onOpenAccessibility,
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF9800))
-                ) {
-                    Text("Habilitar Serviço de Acessibilidade")
-                }
-            }
 
             // Diagnostic button for troubleshooting
             Button(
